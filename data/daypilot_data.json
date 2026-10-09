@@ -1,0 +1,48 @@
+{
+  "tasks": [
+    {
+      "id": "task-001",
+      "title": "Prepare for AI Engineer interview",
+      "priority": "high",
+      "duration_minutes": 60,
+      "due_date": "2026-10-10",
+      "status": "pending"
+    },
+    {
+      "id": "task-002",
+      "title": "Finish hackathon project",
+      "priority": "high",
+      "duration_minutes": 120,
+      "due_date": "2026-10-12",
+      "status": "pending"
+    },
+    {
+      "id": "task-003",
+      "title": "Read Python interview questions",
+      "priority": "medium",
+      "duration_minutes": 45,
+      "due_date": null,
+      "status": "pending"
+    }
+  ],
+  "calendar": [
+    {
+      "id": "event-001",
+      "title": "Focused study session",
+      "start": "2026-10-09T18:00:00",
+      "end": "2026-10-09T19:00:00"
+    },
+    {
+      "id": "event-002",
+      "title": "Hackathon build session",
+      "start": "2026-10-09T19:30:00",
+      "end": "2026-10-09T21:00:00"
+    }
+  ],
+  "preferences": {
+    "working_hours_start": "09:00",
+    "working_hours_end": "21:00",
+    "preferred_focus_minutes": 45,
+    "break_minutes": 10
+  }
+}
