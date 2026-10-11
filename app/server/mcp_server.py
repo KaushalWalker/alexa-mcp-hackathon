@@ -2,6 +2,7 @@
 from datetime import date
 from uuid import uuid4
 from mcp.server.fastmcp import FastMCP
+from app.planner.engine import build_daily_plan
 
 from app.tools.storage import load_data, save_data
 
@@ -89,6 +90,25 @@ def create_task(
     save_data(data)
 
     return task
+
+@mcp.tool()
+def generate_daily_plan(plan_date: str) -> dict:
+    """
+    Generate a daily schedule using saved tasks, calendar
+    events, and user preferences.
+
+    plan_date must be in YYYY-MM-DD format.
+    """
+    date.fromisoformat(plan_date)
+
+    data = load_data()
+
+    return build_daily_plan(
+        tasks=data["tasks"],
+        calendar=data["calendar"],
+        preferences=data["preferences"],
+        plan_date=plan_date,
+    )
 
 
 if __name__ == "__main__":
