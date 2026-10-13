@@ -33,10 +33,23 @@ def build_daily_plan(
     focus_minutes = int(preferences["preferred_focus_minutes"])
     break_minutes = int(preferences["break_minutes"])
 
-    if work_end <= work_start:
-        raise ValueError("Working hours must end after they start.")
-    if focus_minutes < 1 or break_minutes < 0:
+    if focus_minutes <1 or break_minutes < 0:
         raise ValueError("Focus must be positive and break cannot be negative.")
+
+    # for today, never schedule work in the past.
+    # for future or historical dates, preserve the normal schedule.
+    planning_start = work_start
+    now = datetime.now()
+
+
+    if day == now.date():
+        # Round up to the next whole minute so we don't schedule
+        # a task starting in the past by a few  secounds.
+        current_minute = now.replace(second=0, microsecond=0)
+        if now.second > 0 or now.microsecond > 0:
+             current_minute += timedelta(minutes=1)
+
+        planning_start = max(work_start, current_minute)
 
     # Keep only calendar events that overlap this planning day.
     busy = []
@@ -47,7 +60,7 @@ def build_daily_plan(
         if end <= start:
             raise ValueError(f"Invalid calendar event: {event['id']}")
 
-        start = max(start, work_start)
+        start = max(start, planning_start)
         end = min(end, work_end)
 
         if start < end:
@@ -70,7 +83,7 @@ def build_daily_plan(
 
     # Find the free intervals between calendar events.
     free_intervals = []
-    cursor = work_start
+    cursor = planning_start
 
     for start, end, _ in merged:
         if cursor < start:

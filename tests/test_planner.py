@@ -1,6 +1,6 @@
 
 from datetime import datetime
-
+from unittest.mock import patch
 from app.planner.engine import build_daily_plan
 
 
@@ -106,3 +106,33 @@ def test_prioritizes_overdue_tasks():
 
     assert task_sessions[0]["task_id"] == "overdue"
     assert task_sessions[0]["overdue"] is True
+
+
+def test_today_plan_does_not_schedule_work_in_the_past():
+    fake_now = datetime(2026, 10, 13, 10, 30)
+
+    with patch("app.planner.engine.datetime") as mock_datetime:
+        mock_datetime.now.return_value = fake_now
+        mock_datetime.combine = datetime.combine
+        mock_datetime.strptime = datetime.strptime
+        mock_datetime.fromisoformat = datetime.fromisoformat
+
+        plan = build_daily_plan(
+            tasks=[make_task("task-today", 60)],
+            calendar=[],
+            preferences=PREFERENCES,
+            plan_date="2026-10-13",
+        )
+
+    task_sessions = [
+        item for item in plan["scheduled"]
+        if item.get("task_id")
+    ]
+
+    assert task_sessions
+    assert all(
+        datetime.fromisoformat(item["start"])
+        >= fake_now
+        for item in task_sessions
+    )
+
