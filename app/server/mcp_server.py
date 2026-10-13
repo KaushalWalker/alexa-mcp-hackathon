@@ -52,6 +52,73 @@ def get_user_preferences() -> dict:
 
 
 @mcp.tool()
+def update_user_preferences(
+    working_hours_start: str | None = None,
+    working_hours_end: str | None = None,
+    preferred_focus_minutes: int | None = None,
+    break_minutes: int | None = None,
+) -> dict:
+    """Update and save the user's planning preferences.
+
+    Only supplied values are changed. Omitted values stay unchanged.
+    Times use HH:MM in 24-hour format.
+    """
+    from datetime import datetime
+
+    updates = {}
+
+    if working_hours_start is not None:
+        updates["working_hours_start"] = working_hours_start
+
+    if working_hours_end is not None:
+        updates["working_hours_end"] = working_hours_end
+
+    if preferred_focus_minutes is not None:
+        updates["preferred_focus_minutes"] = preferred_focus_minutes
+
+    if break_minutes is not None:
+        updates["break_minutes"] = break_minutes
+
+    data = load_data()
+    preferences = data["preferences"].copy()
+    preferences.update(updates)
+
+    # Validate times and ensure the working day has a valid range.
+    try:
+        start = datetime.strptime(
+            preferences["working_hours_start"], "%H:%M"
+        )
+        end = datetime.strptime(
+            preferences["working_hours_end"], "%H:%M"
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Working hours must use HH:MM format.") from exc
+
+    if start.strftime("%H:%M") != preferences["working_hours_start"]:
+        raise ValueError("Working hours must use HH:MM format.")
+
+    if end.strftime("%H:%M") != preferences["working_hours_end"]:
+        raise ValueError("Working hours must use HH:MM format.")
+
+    if end <= start:
+        raise ValueError("Working hours must end after they start.")
+
+    focus = preferences["preferred_focus_minutes"]
+    breaks = preferences["break_minutes"]
+
+    if isinstance(focus, bool) or not isinstance(focus, int) or focus < 1:
+        raise ValueError("Focus duration must be a positive integer.")
+
+    if isinstance(breaks, bool) or not isinstance(breaks, int) or breaks < 0:
+        raise ValueError("Break duration must be a non-negative integer.")
+
+    data["preferences"] = preferences
+    save_data(data)
+
+    return preferences
+
+
+@mcp.tool()
 def create_task(
     title: str,
     priority: str = "medium",
