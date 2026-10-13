@@ -14,45 +14,55 @@ def build_daily_plan(
     calendar: list[dict],
     preferences: dict,
     plan_date: str,
+    available_minutes: int | None = None,
 ) -> dict:
     """Build a daily schedule without overlapping calendar events."""
 
     day = date.fromisoformat(plan_date)
 
     work_start = datetime.combine(
-        day, datetime.strptime(
+        day,
+        datetime.strptime(
             preferences["working_hours_start"], "%H:%M"
-        ).time()
+        ).time(),
     )
     work_end = datetime.combine(
-        day, datetime.strptime(
+        day,
+        datetime.strptime(
             preferences["working_hours_end"], "%H:%M"
-        ).time()
+        ).time(),
     )
 
     focus_minutes = int(preferences["preferred_focus_minutes"])
     break_minutes = int(preferences["break_minutes"])
 
-    if focus_minutes <1 or break_minutes < 0:
-        raise ValueError("Focus must be positive and break cannot be negative.")
+    if work_end <= work_start:
+        raise ValueError("Working hours must end after they start.")
 
-    # for today, never schedule work in the past.
-    # for future or historical dates, preserve the normal schedule.
+    if focus_minutes < 1 or break_minutes < 0:
+        raise ValueError(
+            "Focus must be positive and break cannot be negative."
+        )
+
+    if available_minutes is not None and available_minutes < 1:
+        raise ValueError("Available minutes must be positive.")
+
+    # For today, never schedule work in the past.
+    # For other dates, preserve the normal working hours.
     planning_start = work_start
     now = datetime.now()
 
-
     if day == now.date():
-        # Round up to the next whole minute so we don't schedule
-        # a task starting in the past by a few  secounds.
         current_minute = now.replace(second=0, microsecond=0)
+
         if now.second > 0 or now.microsecond > 0:
-             current_minute += timedelta(minutes=1)
+            current_minute += timedelta(minutes=1)
 
         planning_start = max(work_start, current_minute)
 
-    # Keep only calendar events that overlap this planning day.
+    # Keep only calendar events overlapping the planning window.
     busy = []
+
     for event in calendar:
         start = datetime.fromisoformat(event["start"])
         end = datetime.fromisoformat(event["end"])
@@ -70,6 +80,7 @@ def build_daily_plan(
 
     # Merge overlapping calendar events.
     merged = []
+
     for start, end, title in busy:
         if merged and start < merged[-1][1]:
             old_start, old_end, old_title = merged[-1]
@@ -81,24 +92,27 @@ def build_daily_plan(
         else:
             merged.append((start, end, title))
 
-    # Find the free intervals between calendar events.
+    # Find free intervals between calendar events.
     free_intervals = []
     cursor = planning_start
 
     for start, end, _ in merged:
         if cursor < start:
             free_intervals.append((cursor, start))
+
         cursor = max(cursor, end)
 
     if cursor < work_end:
         free_intervals.append((cursor, work_end))
 
+    # Keep only pending tasks.
     pending = [
-        task for task in tasks
+        task
+        for task in tasks
         if task.get("status", "pending") == "pending"
     ]
 
-    def sort_key(task):
+    def sort_key(task: dict) -> tuple:
         due = task.get("due_date")
         overdue = bool(due and due < plan_date)
 
@@ -115,10 +129,26 @@ def build_daily_plan(
     unscheduled = []
     total_scheduled = 0
 
-   
-    # Shared, mutable slots: every task uses the time remaining
-    # after previously scheduled tasks.
+    # Each slot is mutable so allocated time cannot be reused.
     slots = [[start, end] for start, end in free_intervals]
+
+    # Optional limit: schedule only within this time window.
+    # Breaks also occupy time within the window.
+    if available_minutes is not None:
+        deadline = planning_start + timedelta(minutes=available_minutes)
+        limited_slots = []
+
+        for start, end in slots:
+            if start >= deadline:
+                continue
+
+            limited_slots.append((start, min(end, deadline)))
+
+        slots = [
+            [start, end]
+            for start, end in limited_slots
+            if start < end
+        ]
 
     for task in pending:
         remaining = int(task["duration_minutes"])
@@ -135,6 +165,7 @@ def build_daily_plan(
         for slot in slots:
             while remaining > 0:
                 cursor, interval_end = slot
+
                 available = int(
                     (interval_end - cursor).total_seconds() // 60
                 )
@@ -143,7 +174,9 @@ def build_daily_plan(
                     break
 
                 session_length = min(
-                    focus_minutes, remaining, available
+                    focus_minutes,
+                    remaining,
+                    available,
                 )
 
                 session_end = cursor + timedelta(
@@ -168,8 +201,7 @@ def build_daily_plan(
                 total_scheduled += session_length
                 cursor = session_end
 
-                # Add a break between sessions only if the task
-                # still needs work and the break fits this slot.
+                # Add a break only when more work remains and it fits.
                 if remaining > 0 and break_minutes > 0:
                     break_end = cursor + timedelta(
                         minutes=break_minutes
@@ -188,8 +220,7 @@ def build_daily_plan(
                     else:
                         cursor = interval_end
 
-                # Save the updated cursor so another task cannot
-                # reuse time that has already been allocated.
+                # Save the updated cursor to prevent double allocation.
                 slot[0] = cursor
 
         if remaining > 0:
@@ -201,6 +232,7 @@ def build_daily_plan(
             })
 
     scheduled.sort(key=lambda item: item["start"])
+
     return {
         "plan_date": plan_date,
         "working_hours": {
@@ -216,5 +248,3 @@ def build_daily_plan(
             "task_minutes_scheduled": total_scheduled,
         },
     }
-
-    

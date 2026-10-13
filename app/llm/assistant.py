@@ -7,30 +7,25 @@ from app.tools.storage import load_data
 
 
 def build_plan_summary(plan: dict) -> str:
-    """Explain the generated plan in clear, practical language."""
     scheduled = plan.get("scheduled", [])
     unscheduled = plan.get("unscheduled", [])
     stats = plan.get("summary", {})
 
     work_blocks = [
-        item for item in scheduled
+        item
+        for item in scheduled
         if item.get("task_id") is not None
         and item.get("type") != "break"
     ]
 
     lines = [
         f"Your plan for {plan['plan_date']} is ready.",
-        (
-            f"{stats.get('task_minutes_scheduled', 0)} minutes "
-            "of task work are scheduled."
-        ),
-        (
-            f"{stats.get('fully_scheduled_tasks', 0)} tasks "
-            "are fully scheduled."
-        ),
+        f"{stats.get('task_minutes_scheduled', 0)} minutes of task work are scheduled.",
+        f"{stats.get('fully_scheduled_tasks', 0)} tasks are fully scheduled.",
     ]
 
     overdue_titles = []
+
     for item in work_blocks:
         if item.get("overdue") and item["title"] not in overdue_titles:
             overdue_titles.append(item["title"])
@@ -53,6 +48,7 @@ def build_plan_summary(plan: dict) -> str:
 
     if unscheduled:
         lines.append("Tasks needing more time:")
+
         for task in unscheduled:
             lines.append(
                 f"- {task['title']}: "
@@ -64,22 +60,28 @@ def build_plan_summary(plan: dict) -> str:
     return "\n".join(lines)
 
 
-def handle_request(message: str, plan_date: str) -> dict:
-    """Handle a user request and generate a daily plan."""
+def handle_request(
+    message: str,
+    plan_date: str,
+    available_minutes: int | None = None,
+) -> dict:
     message = message.strip()
 
     if not message:
         raise ValueError("Message cannot be empty.")
 
     data = load_data()
+
     plan = build_daily_plan(
         tasks=data["tasks"],
         calendar=data["calendar"],
         preferences=data["preferences"],
         plan_date=plan_date,
+        available_minutes=available_minutes,
     )
 
     client = get_llm_client()
+
     response = client.generate(
         f"User request: {message}\n"
         f"Daily plan data: {plan}"

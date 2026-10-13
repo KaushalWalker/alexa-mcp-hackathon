@@ -136,3 +136,45 @@ def test_today_plan_does_not_schedule_work_in_the_past():
         for item in task_sessions
     )
 
+
+def test_available_minutes_limits_schedule():
+    tasks = [
+        {
+            "id": "task-001",
+            "title": "Prepare for interview",
+            "priority": "high",
+            "duration_minutes": 120,
+            "due_date": None,
+            "status": "pending",
+        }
+    ]
+
+    preferences = {
+        "working_hours_start": "09:00",
+        "working_hours_end": "17:00",
+        "preferred_focus_minutes": 45,
+        "break_minutes": 10,
+    }
+
+    plan = build_daily_plan(
+        tasks=tasks,
+        calendar=[],
+        preferences=preferences,
+        plan_date="2099-01-15",
+        available_minutes=30,
+    )
+
+    task_blocks = [
+        item
+        for item in plan["scheduled"]
+        if item.get("task_id") is not None
+        and item.get("type") != "break"
+    ]
+
+    scheduled_minutes = sum(
+        item["duration_minutes"] for item in task_blocks
+    )
+
+    assert scheduled_minutes == 30
+    assert plan["summary"]["task_minutes_scheduled"] == 30
+    assert plan["unscheduled"][0]["minutes_remaining"] == 90

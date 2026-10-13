@@ -63,3 +63,51 @@ def test_plan_summary_explains_priorities_and_unscheduled_work():
     assert "09:00" in summary
     assert "Read Python questions" in summary
     assert "30 minutes remaining" in summary
+
+
+
+
+def test_handle_request_passes_available_minutes(monkeypatch):
+    from app.llm import assistant
+
+    captured = {}
+
+    def fake_load_data():
+        return {
+            "tasks": [
+                {
+                    "id": "task-001",
+                    "title": "Prepare for interview",
+                    "priority": "high",
+                    "duration_minutes": 120,
+                    "due_date": None,
+                    "status": "pending",
+                }
+            ],
+            "calendar": [],
+            "preferences": {
+                "working_hours_start": "09:00",
+                "working_hours_end": "17:00",
+                "preferred_focus_minutes": 45,
+                "break_minutes": 10,
+            },
+        }
+
+    class FakeLLM:
+        def generate(self, prompt):
+            return "Here is your updated plan."
+
+    monkeypatch.setattr(assistant, "load_data", fake_load_data)
+    monkeypatch.setattr(
+        assistant, "get_llm_client", lambda: FakeLLM()
+    )
+
+    result = assistant.handle_request(
+        message="I only have 30 minutes",
+        plan_date="2099-01-15",
+        available_minutes=30,
+    )
+
+    assert result["plan"]["summary"]["task_minutes_scheduled"] == 30
+    assert result["plan"]["unscheduled"][0]["minutes_remaining"] == 90
+    assert result["assistant_response"] == "Here is your updated plan."
