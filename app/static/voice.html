@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DayPilot Voice Assistant</title>
+
   <style>
     body {
       font-family: system-ui, sans-serif;
@@ -15,12 +16,14 @@
       background: #f5f7fb;
       color: #172033;
     }
+
     main {
       background: white;
       padding: 24px;
       border-radius: 16px;
       box-shadow: 0 4px 20px #0000000d;
     }
+
     textarea, input, button {
       box-sizing: border-box;
       width: 100%;
@@ -29,15 +32,27 @@
       font: inherit;
       border-radius: 8px;
     }
-    textarea, input { border: 1px solid #ccd2df; }
+
+    textarea, input {
+      border: 1px solid #ccd2df;
+    }
+
     button {
       border: 0;
       background: #2457d6;
       color: white;
       cursor: pointer;
     }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .secondary { background: #475569; }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .secondary {
+      background: #475569;
+    }
+
     pre {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
@@ -45,156 +60,353 @@
       padding: 12px;
       border-radius: 8px;
     }
-    #status { color: #475569; }
+
+    #status, #speechStatus {
+      color: #475569;
+    }
+
+    audio {
+      width: 100%;
+      margin: 8px 0;
+    }
+
+    .note {
+      color: #64748b;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
+
 <body>
-<main>
-  <h1>🎙️ DayPilot</h1>
-  <p>Your voice-first daily planning assistant.</p>
+  <main>
+    <h1>🎙️ DayPilot</h1>
+    <p>Your voice-first daily planning assistant.</p>
 
-  <label for="planDate">Planning date</label>
-  <input id="planDate" type="date">
+    <label for="planDate">Planning date</label>
+    <input id="planDate" type="date">
 
-  <label for="message">Your request</label>
-  <textarea id="message" rows="3"
-    placeholder="For example: Help me organize my day"></textarea>
+    <label for="message">Your request</label>
+    <textarea
+      id="message"
+      rows="3"
+      placeholder="For example: Help me organize my day"
+    ></textarea>
 
-  <button id="listenButton" type="button">🎤 Start listening</button>
-  <button id="sendButton" type="button">Send to DayPilot</button>
-  <button id="speakButton" type="button" class="secondary">
-    🔊 Read response again
-  </button>
+    <button id="listenButton" type="button">
+      🎤 Start listening
+    </button>
 
-  <p id="status" role="status">Ready.</p>
+    <button id="sendButton" type="button">
+      Send to DayPilot
+    </button>
 
-  <h2>Assistant response</h2>
-  <pre id="response">Your response will appear here.</pre>
+    <p id="status" role="status">Ready.</p>
 
-  <h2>Generated plan</h2>
-  <pre id="plan">Your plan will appear here.</pre>
-</main>
+    <h2>Assistant response</h2>
+    <pre id="response">Your response will appear here.</pre>
 
-<script>
-  const messageInput = document.getElementById("message");
-  const dateInput = document.getElementById("planDate");
-  const statusText = document.getElementById("status");
-  const responseBox = document.getElementById("response");
-  const planBox = document.getElementById("plan");
-  const listenButton = document.getElementById("listenButton");
-  const sendButton = document.getElementById("sendButton");
-  const speakButton = document.getElementById("speakButton");
+    <h2>Your daily plan summary</h2>
+    <pre id="planSummary">Your summary will appear here.</pre>
 
-  dateInput.value = new Date().toLocaleDateString("en-CA");
+    <h2>Choose your voice</h2>
 
-  let lastSpokenResponse = "";
+    <button id="speakButton" type="button" class="secondary">
+      🔊 Listen with browser voice (Free)
+    </button>
 
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
+    <button id="naturalVoiceButton" type="button">
+      🎙️ Listen with natural AI voice
+    </button>
 
-  if (!SpeechRecognition) {
-    listenButton.disabled = true;
-    statusText.textContent =
-      "Speech recognition is not supported here. Try a recent version of Chrome or Edge.";
-  }
+    <p class="note">
+      Natural AI voice is generated using an AI speech service.
+      If it fails, DayPilot will try the free browser voice instead.
+    </p>
 
-  listenButton.addEventListener("click", () => {
-    if (!SpeechRecognition) return;
+    <p id="speechStatus" role="status">
+      Generate a plan, then choose your preferred voice.
+    </p>
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-IN";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    <audio id="naturalAudio" controls></audio>
 
-    recognition.onstart = () => {
-      statusText.textContent = "Listening... Speak now.";
-      listenButton.disabled = true;
-    };
+    <h2>Generated plan</h2>
+    <pre id="plan">Your plan will appear here.</pre>
+  </main>
 
-    recognition.onresult = (event) => {
-      messageInput.value = event.results[0][0].transcript;
-      statusText.textContent =
-        "Speech captured. Press Send to submit your request.";
-    };
+  <script>
+    const messageInput = document.getElementById("message");
+    const dateInput = document.getElementById("planDate");
+    const statusText = document.getElementById("status");
+    const responseBox = document.getElementById("response");
+    const summaryBox = document.getElementById("planSummary");
+    const planBox = document.getElementById("plan");
 
-    recognition.onerror = (event) => {
-      statusText.textContent = "Microphone error: " + event.error;
-    };
+    const listenButton = document.getElementById("listenButton");
+    const sendButton = document.getElementById("sendButton");
+    const speakButton = document.getElementById("speakButton");
+    const naturalVoiceButton =
+      document.getElementById("naturalVoiceButton");
 
-    recognition.onend = () => {
-      listenButton.disabled = false;
-    };
+    const speechStatus = document.getElementById("speechStatus");
+    const naturalAudio = document.getElementById("naturalAudio");
 
-    recognition.start();
-  });
+    let lastSpokenResponse = "";
+    let naturalAudioUrl = null;
 
-  async function sendRequest() {
-    const message = messageInput.value.trim();
+    // Use a local date to avoid UTC timezone shifts.
+    function getLocalDate() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
 
-    if (!message) {
-      statusText.textContent = "Please type or speak a request first.";
-      return;
+      return `${year}-${month}-${day}`;
     }
 
-    sendButton.disabled = true;
-    statusText.textContent = "DayPilot is preparing your plan...";
+    dateInput.value = getLocalDate();
 
-    try {
-      const result = await fetch("/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          plan_date: dateInput.value
-        })
-      });
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      const data = await result.json();
-
-      if (!result.ok) {
-        throw new Error(data.detail || "Request failed.");
+    function stopCurrentSpeech() {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
       }
 
-      responseBox.textContent = data.assistant_response;
-      planBox.textContent = JSON.stringify(data.plan, null, 2);
+      naturalAudio.pause();
+      naturalAudio.currentTime = 0;
+    }
 
-      lastSpokenResponse =
-        `I've generated your plan for ${data.plan.plan_date}. ` +
-        "The detailed plan is displayed on your screen.";
+    function speak(text) {
+      if (!("speechSynthesis" in window)) {
+        speechStatus.textContent =
+          "Browser speech is not supported in this browser.";
+        return;
+      }
 
+      stopCurrentSpeech();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-IN";
+
+      utterance.onstart = () => {
+        speechStatus.textContent = "Playing free browser voice.";
+      };
+
+      utterance.onend = () => {
+        speechStatus.textContent = "Browser voice finished.";
+      };
+
+      utterance.onerror = () => {
+        speechStatus.textContent = "Browser voice could not play.";
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // Speech recognition: microphone to text.
+    if (!SpeechRecognition) {
+      listenButton.disabled = true;
       statusText.textContent =
-        `Plan generated successfully. Provider: ${data.provider}.`;
+        "Speech recognition is unavailable. Try a recent version of Chrome or Edge.";
+    }
+
+    listenButton.addEventListener("click", () => {
+      if (!SpeechRecognition) {
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-IN";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        statusText.textContent = "Listening... Speak now.";
+        listenButton.disabled = true;
+      };
+
+      recognition.onresult = (event) => {
+        messageInput.value = event.results[0][0].transcript;
+        statusText.textContent =
+          "Speech captured. Press Send to submit your request.";
+      };
+
+      recognition.onerror = (event) => {
+        statusText.textContent = "Microphone error: " + event.error;
+      };
+
+      recognition.onend = () => {
+        listenButton.disabled = false;
+      };
+
+      try {
+        recognition.start();
+      } catch (error) {
+        statusText.textContent =
+          "Could not start microphone: " + error.message;
+        listenButton.disabled = false;
+      }
+    });
+
+    // Send the user's request to DayPilot.
+    async function sendRequest() {
+      const message = messageInput.value.trim();
+
+      if (!message) {
+        statusText.textContent =
+          "Please type or speak a request first.";
+        return;
+      }
+
+      stopCurrentSpeech();
+      sendButton.disabled = true;
+      statusText.textContent = "DayPilot is preparing your plan...";
+
+      try {
+        const result = await fetch("/assistant", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message,
+            plan_date: dateInput.value
+          })
+        });
+
+        const data = await result.json();
+
+        if (!result.ok) {
+          throw new Error(data.detail || "Request failed.");
+        }
+
+        summaryBox.textContent = data.plan_summary;
+        responseBox.textContent = data.assistant_response;
+        planBox.textContent = JSON.stringify(data.plan, null, 2);
+
+        lastSpokenResponse = data.plan_summary;
+
+        statusText.textContent =
+          `Plan generated successfully. Provider: ${data.provider}.`;
+
+        speechStatus.textContent =
+          "Choose browser voice or natural AI voice.";
+
+      } catch (error) {
+        statusText.textContent =
+          "Could not generate your plan: " + error.message;
+      } finally {
+        sendButton.disabled = false;
+      }
+    }
+
+    sendButton.addEventListener("click", sendRequest);
+
+    // Option 1: free browser voice.
+    speakButton.addEventListener("click", () => {
+      if (!lastSpokenResponse) {
+        speechStatus.textContent = "Generate a plan first.";
+        return;
+      }
 
       speak(lastSpokenResponse);
-    } catch (error) {
-      statusText.textContent = "Error: " + error.message;
-    } finally {
-      sendButton.disabled = false;
-    }
-  }
+    });
 
-  function speak(text) {
-    if (!("speechSynthesis" in window)) {
-      statusText.textContent += " Speech output is unavailable in this browser.";
-      return;
-    }
+    // Option 2: natural AI voice, with browser-voice fallback.
+    naturalVoiceButton.addEventListener("click", async () => {
+      const text = lastSpokenResponse;
 
-    window.speechSynthesis.cancel();
+      if (!text) {
+        speechStatus.textContent = "Generate a plan first.";
+        return;
+      }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-IN";
-    window.speechSynthesis.speak(utterance);
-  }
+      stopCurrentSpeech();
+      naturalVoiceButton.disabled = true;
+      speechStatus.textContent = "Generating natural AI speech...";
 
-  sendButton.addEventListener("click", sendRequest);
+      try {
+        const response = await fetch("/speech", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            message: text,
+            plan_date: dateInput.value
+          })
+        });
 
-  speakButton.addEventListener("click", () => {
-    if (lastSpokenResponse) {
-      speak(lastSpokenResponse);
-    } else {
-      statusText.textContent = "Generate a plan first.";
-    }
-  });
-</script>
+        if (!response.ok) {
+          throw new Error("Natural speech service returned an error.");
+        }
+
+        const audioBlob = await response.blob();
+
+        if (!audioBlob.size) {
+          throw new Error("The speech service returned empty audio.");
+        }
+
+        if (naturalAudioUrl) {
+          URL.revokeObjectURL(naturalAudioUrl);
+          naturalAudioUrl = null;
+        }
+
+        naturalAudioUrl = URL.createObjectURL(audioBlob);
+        naturalAudio.src = naturalAudioUrl;
+
+        await naturalAudio.play();
+
+        speechStatus.textContent = "Playing natural AI voice.";
+
+      } catch (error) {
+        // Clean up failed or unplayable natural audio.
+        naturalAudio.pause();
+        naturalAudio.removeAttribute("src");
+        naturalAudio.load();
+
+        if (naturalAudioUrl) {
+          URL.revokeObjectURL(naturalAudioUrl);
+          naturalAudioUrl = null;
+        }
+
+        if ("speechSynthesis" in window) {
+          speechStatus.textContent =
+            "Natural voice failed. Trying free browser voice...";
+
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = "en-IN";
+
+          utterance.onstart = () => {
+            speechStatus.textContent =
+              "Natural voice unavailable. Playing free browser voice instead.";
+          };
+
+          utterance.onerror = () => {
+            speechStatus.textContent =
+              "Both voice options are currently unavailable.";
+          };
+
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(utterance);
+
+        } else {
+          speechStatus.textContent =
+            "Natural voice failed, and browser speech is unsupported.";
+        }
+
+      } finally {
+        naturalVoiceButton.disabled = false;
+      }
+    });
+
+    // Release the temporary audio URL when the page is closed.
+    window.addEventListener("beforeunload", () => {
+      if (naturalAudioUrl) {
+        URL.revokeObjectURL(naturalAudioUrl);
+      }
+    });
+  </script>
 </body>
 </html>
