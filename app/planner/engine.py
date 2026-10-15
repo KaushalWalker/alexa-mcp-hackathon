@@ -228,7 +228,14 @@ def build_daily_plan(
                 "task_id": task["id"],
                 "title": task["title"],
                 "minutes_remaining": remaining,
-                "reason": "Not enough available time today.",
+                "minutes_scheduled":(
+                    int(task["duration_minutes"]) -remaining
+                ),
+                "reason": (
+                    "Partially scheduled; more time is needed."
+                    if remaining < int(task["duration_minutes"])
+                    else "Not enough available time today."
+                ),
             })
 
     scheduled.sort(key=lambda item: item["start"])

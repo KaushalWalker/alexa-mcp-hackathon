@@ -95,3 +95,65 @@ def test_updated_focus_preference_changes_plan(isolated_data):
     assert [item["duration_minutes"] for item in work_sessions] == [
         25, 25, 10
     ]
+
+
+def test_complete_task_updates_status(isolated_data):
+    task = mcp_server.complete_task("task-001")
+
+    assert task["status"] == "completed"
+
+    saved = storage.load_data()
+    saved_task = next(
+        item for item in saved["tasks"]
+        if item["id"] == "task-001"
+    )
+
+    assert saved_task["status"] == "completed"
+
+
+def test_complete_task_is_idempotent(isolated_data):
+    first = mcp_server.complete_task("task-001")
+    second = mcp_server.complete_task("task-001")
+
+    assert first["status"] == "completed"
+    assert second["status"] == "completed"
+
+
+def test_complete_task_rejects_unknown_id(isolated_data):
+    with pytest.raises(ValueError, match="Task not found"):
+        mcp_server.complete_task("task-unknown")
+
+
+
+def test_replanning_excludes_completed_tasks(isolated_data):
+    # Complete one task using our new MCP tool.
+    mcp_server.complete_task("task-001")
+
+    # Load the updated data from temporary storage.
+    data = storage.load_data()
+
+    # Generate a fresh plan with only 30 minutes available.
+    plan = build_daily_plan(
+        tasks=data["tasks"],
+        calendar=data["calendar"],
+        preferences=data["preferences"],
+        plan_date="2099-01-01",
+        available_minutes=30,
+    )
+
+    scheduled_task_ids = {
+        item["task_id"]
+        for item in plan["scheduled"]
+        if item.get("task_id") is not None
+    }
+
+    # Completed task must not appear in the new plan.
+    assert "task-001" not in scheduled_task_ids
+
+    # The new plan must respect the available time.
+    assert plan["summary"]["task_minutes_scheduled"] <= 30
+
+    # Only the remaining two tasks should be pending.
+    assert plan["summary"]["pending_tasks"] == 2
+
+
