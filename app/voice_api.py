@@ -3,6 +3,10 @@ import os
 import re
 from datetime import date
 from pathlib import Path
+from app.llm.assistant import handle_request
+from app.tools.storage import load_data
+from app.server.mcp_server import complete_task, create_task, update_user_preferences
+from app.commands.router import detect_intent
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -10,6 +14,8 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel, Field
+
+
 
 from app.llm.assistant import handle_request
 
@@ -66,7 +72,7 @@ def extract_available_minutes(message: str) -> int | None:
         r"\b("
         r"(?:i|we)\s+(?:only\s+)?(?:have|got)"
         r"|(?:i|we)\s+(?:have|got)\s+only"
-        r"|(?:plan|schedule|organize)\s+(?:my\s+)?next"
+        r"|(?:plan|replan|schedule|organize)\s+(?:my\s+)?next"
         r"|(?:i|we)\s+can\s+(?:spend|work|study)"
         r")\b",
         text,
@@ -95,6 +101,164 @@ def extract_available_minutes(message: str) -> int | None:
 
     return total if total > 0 else None
 
+def find_task_to_complete(message: str) -> dict | None:
+    """Find one task explicitly identified in a completion request."""
+
+    text = message.lower().strip()
+
+    completion_phrases = (
+        "i finished",
+        "i have finished",
+        "i completed",
+        "i have completed",
+        "mark as completed",
+        "mark it complete",
+        "mark it as complete",
+    )
+
+    if not any(phrase in text for phrase in completion_phrases):
+        return None
+
+    data = load_data()
+    matches = []
+
+    for task in data["tasks"]:
+        if task.get("status") != "pending":
+            continue
+
+        title = task["title"].lower()
+
+        if title in text:
+            matches.append(task)
+
+    if len(matches) != 1:
+        return None
+
+    return matches[0]
+
+def get_pending_tasks_response() -> dict:
+    """Return pending tasks without calling an LLM."""
+
+    data = load_data()
+
+    pending_tasks = [
+        task
+        for task in data["tasks"]
+        if task.get("status") == "pending"
+    ]
+
+    if not pending_tasks:
+        message = "You're all caught up! No pending tasks."
+    else:
+        lines = ["Here are your pending tasks:"]
+
+        for index, task in enumerate(pending_tasks, start=1):
+            lines.append(f"{index}. {task['title']}")
+
+        message = "\n".join(lines)
+
+    return {
+        "assistant_response": message,
+        "pending_tasks": pending_tasks,
+        "intent": "list_tasks",
+        "provider": "rule_based",
+    }
+
+
+def extract_new_task(message: str) -> dict | None:
+    """Extract a task title and optional duration from a simple command."""
+
+    text = message.strip()
+
+    patterns = [
+        r"^add a task to\s+(.+)$",
+        r"^create a task to\s+(.+)$",
+        r"^remind me to\s+(.+)$",
+        r"^add a task called\s+(.+)$",
+        r"^create a task called\s+(.+)$",
+    ]
+
+    title = None
+
+    for pattern in patterns:
+        match = re.match(pattern, text, re.IGNORECASE)
+        if match:
+            title = match.group(1).strip()
+            break
+
+    if not title:
+        return None
+
+    duration = 30
+    duration_match = re.search(
+        r"\s+for\s+(\d+)\s*(minutes?|mins?)$",
+        title,
+        re.IGNORECASE,
+    )
+
+    if duration_match:
+        duration = int(duration_match.group(1))
+        title = title[:duration_match.start()].strip()
+
+    if not title:
+        return None
+
+    return {
+        "title": title,
+        "duration_minutes": duration,
+        "priority": "medium",
+    }
+
+
+def extract_preference_updates(message: str) -> dict | None:
+    """Extract simple preference changes from natural-language commands."""
+    text = message.lower()
+    updates = {}
+
+    focus_match = re.search(
+        r"\b(?:focus time|focus duration|focus)\s+(?:to|of)\s+(\d+)\s*(?:minutes?|mins?)\b",
+        text,
+    )
+    if focus_match:
+        updates["preferred_focus_minutes"] = int(focus_match.group(1))
+
+    break_match = re.search(
+        r"\bbreak(?: time| duration)?\s+(?:to|of)\s+(\d+)\s*(?:minutes?|mins?)\b",
+        text,
+    )
+    if break_match:
+        updates["break_minutes"] = int(break_match.group(1))
+
+    hours_match = re.search(
+        r"\bworking hours?\s+(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"
+        r"\s+to\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
+        text,
+    )
+    if hours_match:
+        def to_24_hour(hour, minute, meridiem):
+            hour = int(hour)
+            minute = int(minute or 0)
+
+            if minute > 59 or hour < 1 or hour > 12:
+                raise ValueError("Use valid working hours, such as 9 AM to 8 PM.")
+
+            if meridiem == "am":
+                hour = hour % 12
+            elif meridiem == "pm":
+                hour = (hour % 12) + 12
+
+            return f"{hour:02d}:{minute:02d}"
+
+        updates["working_hours_start"] = to_24_hour(
+            hours_match.group(1), hours_match.group(2), hours_match.group(3)
+        )
+        updates["working_hours_end"] = to_24_hour(
+            hours_match.group(4), hours_match.group(5), hours_match.group(6)
+        )
+
+    return updates or None
+
+
 
 @app.get("/health")
 def health_check():
@@ -107,6 +271,68 @@ def health_check():
 @app.post("/assistant")
 def assistant_endpoint(request: AssistantRequest):
     try:
+        intent = detect_intent(request.message)
+
+        if intent == "list_tasks":
+            return get_pending_tasks_response()
+
+        if intent == "update_preferences":
+            updates = extract_preference_updates(request.message)
+
+            if updates is None:
+                return {
+                    "intent": "update_preferences",
+                    "assistant_response": (
+                        "Try: 'Set my focus time to 25 minutes', "
+                        "'Change my break time to 5 minutes', or "
+                        "'Set my working hours from 9 AM to 8 PM'."
+                    ),
+                    "provider": "rule_based",
+                }
+
+            preferences = update_user_preferences(**updates)
+
+            return {
+                "intent": "update_preferences",
+                "preferences": preferences,
+                "assistant_response": (
+                    "Done! I've updated your planning preferences."
+                ),
+                "provider": "rule_based",
+            }
+
+
+
+        completed_task = find_task_to_complete(request.message)
+
+        if completed_task is not None:
+            complete_task(completed_task["id"])
+
+            # Rebuild the plan after the task is marked complete.
+            result = handle_request(
+                message=request.message,
+                plan_date=request.plan_date.isoformat(),
+                available_minutes=(
+                    request.available_minutes
+                    if request.available_minutes is not None
+                    else extract_available_minutes(request.message)
+                ),
+            )
+
+            result["available_minutes"] = (
+                request.available_minutes
+                if request.available_minutes is not None
+                else extract_available_minutes(request.message)
+            )
+            result["completed_task"] = completed_task["title"]
+            result["assistant_response"] = (
+                f"Great work! I've marked '{completed_task['title']}' "
+                f"as completed. Here's your updated plan.\n\n"
+                f"{result['plan_summary']}"
+            )
+
+            return result
+
         # Explicit API value takes priority over message extraction.
         available_minutes = request.available_minutes
 
@@ -136,6 +362,8 @@ def assistant_endpoint(request: AssistantRequest):
             status_code=500,
             detail="DayPilot couldn't process this request.",
         ) from exc
+
+
 
 
 @app.post("/speech")

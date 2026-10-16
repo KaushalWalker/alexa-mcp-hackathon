@@ -178,5 +178,22 @@ def generate_daily_plan(plan_date: str) -> dict:
     )
 
 
+@mcp.tool()
+def complete_task(task_id: str) -> dict:
+    """Mark an existing task as completed and save the change."""
+    data = load_data()
+
+    for task in data["tasks"]:
+        if task["id"] == task_id:
+            if task["status"] == "completed":
+                return task
+
+            task["status"] = "completed"
+            save_data(data)
+            return task
+
+    raise ValueError(f"Task not found: {task_id}")
+
+
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")

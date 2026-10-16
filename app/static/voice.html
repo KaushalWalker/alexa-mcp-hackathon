@@ -285,7 +285,7 @@
         responseBox.textContent = data.assistant_response;
         planBox.textContent = JSON.stringify(data.plan, null, 2);
 
-        lastSpokenResponse = data.plan_summary;
+        lastSpokenResponse = data.assistant_response;
 
         statusText.textContent =
           `Plan generated successfully. Provider: ${data.provider}.`;
