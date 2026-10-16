@@ -144,19 +144,32 @@ def create_task(
 
     data = load_data()
 
+    # Prevent accidental duplicate pending tasks.
+    normalized_title = title.casefold()
+
+    for existing_task in data["tasks"]:
+        if (
+            existing_task.get("status") == "pending"
+            and existing_task["title"].strip().casefold()
+            == normalized_title
+        ):
+            raise ValueError(
+                f"A pending task with this title already exists: {title}"
+            )
     task = {
-        "id": f"task-{uuid4().hex[:8]}",
-        "title": title,
-        "priority": priority,
-        "duration_minutes": duration_minutes,
-        "due_date": due_date,
-        "status": "pending",
+    "id": f"task-{uuid4().hex[:8]}",
+    "title": title,
+    "priority": priority,
+    "duration_minutes": duration_minutes,
+    "due_date": due_date,
+    "status": "pending",
     }
 
     data["tasks"].append(task)
     save_data(data)
 
     return task
+
 
 @mcp.tool()
 def generate_daily_plan(plan_date: str) -> dict:

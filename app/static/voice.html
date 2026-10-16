@@ -282,10 +282,18 @@
         }
 
         summaryBox.textContent = data.plan_summary;
-        responseBox.textContent = data.assistant_response;
+
+        const assistantResponse = data.assistant_response || "";
+        const planSummary = data.plan_summary || "";
+
+        responseBox.textContent =
+          assistantResponse.trim() === planSummary.trim()
+            ? "Your daily plan summary is shown below."
+            : assistantResponse;
+
         planBox.textContent = JSON.stringify(data.plan, null, 2);
 
-        lastSpokenResponse = data.assistant_response;
+        lastSpokenResponse = assistantResponse || planSummary;
 
         statusText.textContent =
           `Plan generated successfully. Provider: ${data.provider}.`;

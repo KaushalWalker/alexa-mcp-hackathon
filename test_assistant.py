@@ -102,6 +102,7 @@ def test_handle_request_passes_available_minutes(monkeypatch):
         assistant, "get_llm_client", lambda: FakeLLM()
     )
 
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
     result = assistant.handle_request(
         message="I only have 30 minutes",
         plan_date="2099-01-15",

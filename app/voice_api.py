@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 
 
 
-from app.llm.assistant import handle_request
 
 
 load_dotenv()
@@ -291,15 +290,28 @@ def assistant_endpoint(request: AssistantRequest):
 
             created_task = create_task(**task_details)
 
-            return{
-                "intent": "create_task",
-                "created_task": created_task,
-                "assistant_response": (
-                    f"Done! I've added '{created_task['title']}'"
-                    f"to your task list."
-                ),
-                "provider": "rule_based"
-            }
+            available_minutes = request.available_minutes
+
+            if available_minutes is None:
+                available_minutes = extract_available_minutes(request.message)
+
+            result = handle_request(
+                message=request.message,
+                plan_date=request.plan_date.isoformat(),
+                available_minutes=available_minutes,
+            )
+
+            result["intent"] = "create_task"
+            result["created_task"] = created_task
+            result["assistant_response"] = ( f"Done! I've added '{created_task['title']}' "
+                                            "to your task list."
+
+            )
+
+            result["provider"] = "rule_based"
+            result["available_minutes"] = available_minutes
+
+            return result
 
 
         if intent == "update_preferences":
