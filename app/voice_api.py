@@ -276,6 +276,32 @@ def assistant_endpoint(request: AssistantRequest):
         if intent == "list_tasks":
             return get_pending_tasks_response()
 
+        if intent == "create_task":
+            task_details = extract_new_task(request.message)
+
+            if task_details is None:
+                return {
+                    "intent": "create_task",
+                    "assistant_response":(
+                        "Try: 'Add a task to prepare for an interview for 30 minutes.'"
+
+                    ),
+                    "provider": "rule_based",
+                }
+
+            created_task = create_task(**task_details)
+
+            return{
+                "intent": "create_task",
+                "created_task": created_task,
+                "assistant_response": (
+                    f"Done! I've added '{created_task['title']}'"
+                    f"to your task list."
+                ),
+                "provider": "rule_based"
+            }
+
+
         if intent == "update_preferences":
             updates = extract_preference_updates(request.message)
 
