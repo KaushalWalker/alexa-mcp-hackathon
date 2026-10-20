@@ -22,3 +22,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+
+# DayPilot runtime demo data
+data/daypilot_demo.json
