@@ -3,10 +3,6 @@ import os
 import re
 from datetime import date
 from pathlib import Path
-from app.llm.assistant import handle_request
-from app.tools.storage import load_data
-from app.server.mcp_server import complete_task, create_task, update_user_preferences
-from app.commands.router import detect_intent
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -15,8 +11,14 @@ from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-
-
+from app.commands.router import detect_intent
+from app.llm.assistant import handle_request
+from app.server.mcp_server import (
+    complete_task,
+    create_task,
+    update_user_preferences,
+)
+from app.tools.storage import load_data
 
 
 load_dotenv()
@@ -66,7 +68,6 @@ def extract_available_minutes(message: str) -> int | None:
     if not hour_match and not minute_match:
         return None
 
-    # Require wording that indicates available planning time.
     budget_context = re.search(
         r"\b("
         r"(?:i|we)\s+(?:only\s+)?(?:have|got)"
@@ -80,7 +81,6 @@ def extract_available_minutes(message: str) -> int | None:
     if not budget_context:
         return None
 
-    # Avoid treating a number before the context as a budget.
     first_match = min(
         (
             match
@@ -100,8 +100,10 @@ def extract_available_minutes(message: str) -> int | None:
 
     return total if total > 0 else None
 
+
+
 def find_task_to_complete(message: str) -> dict | None:
-    """Find one task explicitly identified in a completion request."""
+    """Find one pending task named in a completion request."""
 
     text = message.lower().strip()
 
@@ -113,6 +115,8 @@ def find_task_to_complete(message: str) -> dict | None:
         "mark as completed",
         "mark it complete",
         "mark it as complete",
+        "mark my task as complete",
+        "i did",
     )
 
     if not any(phrase in text for phrase in completion_phrases):
@@ -125,15 +129,38 @@ def find_task_to_complete(message: str) -> dict | None:
         if task.get("status") != "pending":
             continue
 
-        title = task["title"].lower()
+        title = task["title"].lower().strip()
+        title_variants = {title}
 
-        if title in text:
+        # Support natural progressive forms:
+        # "prepare my demo" -> "preparing my demo"
+        words = title.split()
+        if words:
+            verb = words[0]
+            if verb.endswith("e"):
+                progressive_verb = verb[:-1] + "ing"
+            else:
+                progressive_verb = verb + "ing"
+
+            title_variants.add(
+                " ".join([progressive_verb, *words[1:]])
+            )
+
+        if any(
+            re.search(
+                rf"(?<!\w){re.escape(variant)}(?!\w)",
+                text,
+            )
+            for variant in title_variants
+        ):
             matches.append(task)
 
     if len(matches) != 1:
         return None
 
     return matches[0]
+
+
 
 def get_pending_tasks_response() -> dict:
     """Return pending tasks without calling an LLM."""
@@ -181,6 +208,7 @@ def extract_new_task(message: str) -> dict | None:
 
     for pattern in patterns:
         match = re.match(pattern, text, re.IGNORECASE)
+
         if match:
             title = match.group(1).strip()
             break
@@ -189,6 +217,7 @@ def extract_new_task(message: str) -> dict | None:
         return None
 
     duration = 30
+
     duration_match = re.search(
         r"\s+for\s+(\d+)\s*(minutes?|mins?)$",
         title,
@@ -211,35 +240,50 @@ def extract_new_task(message: str) -> dict | None:
 
 def extract_preference_updates(message: str) -> dict | None:
     """Extract simple preference changes from natural-language commands."""
+
     text = message.lower()
     updates = {}
 
     focus_match = re.search(
-        r"\b(?:focus time|focus duration|focus)\s+(?:to|of)\s+(\d+)\s*(?:minutes?|mins?)\b",
+        r"\b(?:focus time|focus duration|focus)\s+"
+        r"(?:to|of)\s+(\d+)\s*(?:minutes?|mins?)\b",
         text,
     )
+
     if focus_match:
-        updates["preferred_focus_minutes"] = int(focus_match.group(1))
+        updates["preferred_focus_minutes"] = int(
+            focus_match.group(1)
+        )
 
     break_match = re.search(
-        r"\bbreak(?: time| duration)?\s+(?:to|of)\s+(\d+)\s*(?:minutes?|mins?)\b",
+        r"\bbreak(?: time| duration)?\s+"
+        r"(?:to|of)\s+(\d+)\s*(?:minutes?|mins?)\b",
         text,
     )
+
     if break_match:
-        updates["break_minutes"] = int(break_match.group(1))
+        updates["break_minutes"] = int(
+            break_match.group(1)
+        )
 
     hours_match = re.search(
-        r"\bworking hours?\s+(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"
-        r"\s+to\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
+        r"\bworking hours?\s+(?:from\s+)?"
+        r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"
+        r"\s+to\s+"
+        r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
         text,
     )
+
     if hours_match:
+
         def to_24_hour(hour, minute, meridiem):
             hour = int(hour)
             minute = int(minute or 0)
 
             if minute > 59 or hour < 1 or hour > 12:
-                raise ValueError("Use valid working hours, such as 9 AM to 8 PM.")
+                raise ValueError(
+                    "Use valid working hours, such as 9 AM to 8 PM."
+                )
 
             if meridiem == "am":
                 hour = hour % 12
@@ -249,14 +293,18 @@ def extract_preference_updates(message: str) -> dict | None:
             return f"{hour:02d}:{minute:02d}"
 
         updates["working_hours_start"] = to_24_hour(
-            hours_match.group(1), hours_match.group(2), hours_match.group(3)
+            hours_match.group(1),
+            hours_match.group(2),
+            hours_match.group(3),
         )
+
         updates["working_hours_end"] = to_24_hour(
-            hours_match.group(4), hours_match.group(5), hours_match.group(6)
+            hours_match.group(4),
+            hours_match.group(5),
+            hours_match.group(6),
         )
 
     return updates or None
-
 
 
 @app.get("/health")
@@ -272,18 +320,20 @@ def assistant_endpoint(request: AssistantRequest):
     try:
         intent = detect_intent(request.message)
 
+        # 1. List pending tasks.
         if intent == "list_tasks":
             return get_pending_tasks_response()
 
+        # 2. Create a new task.
         if intent == "create_task":
             task_details = extract_new_task(request.message)
 
             if task_details is None:
                 return {
                     "intent": "create_task",
-                    "assistant_response":(
-                        "Try: 'Add a task to prepare for an interview for 30 minutes.'"
-
+                    "assistant_response": (
+                        "Try: 'Add a task to prepare for "
+                        "an interview for 30 minutes.'"
                     ),
                     "provider": "rule_based",
                 }
@@ -293,7 +343,9 @@ def assistant_endpoint(request: AssistantRequest):
             available_minutes = request.available_minutes
 
             if available_minutes is None:
-                available_minutes = extract_available_minutes(request.message)
+                available_minutes = extract_available_minutes(
+                    request.message
+                )
 
             result = handle_request(
                 message=request.message,
@@ -303,17 +355,16 @@ def assistant_endpoint(request: AssistantRequest):
 
             result["intent"] = "create_task"
             result["created_task"] = created_task
-            result["assistant_response"] = ( f"Done! I've added '{created_task['title']}' "
-                                            "to your task list."
-
+            result["assistant_response"] = (
+                f"Done! I've added '{created_task['title']}' "
+                "to your task list."
             )
-
             result["provider"] = "rule_based"
             result["available_minutes"] = available_minutes
 
             return result
 
-
+        # 3. Update user preferences.
         if intent == "update_preferences":
             updates = extract_preference_updates(request.message)
 
@@ -339,29 +390,38 @@ def assistant_endpoint(request: AssistantRequest):
                 "provider": "rule_based",
             }
 
+        # 4. Complete a task and automatically replan.
+        if intent == "complete_task":
+            completed_task = find_task_to_complete(request.message)
 
+            if completed_task is None:
+                return {
+                    "intent": "complete_task",
+                    "assistant_response": (
+                        "Which task did you finish? "
+                        "Please mention the task name, for example: "
+                        "'I finished preparing my project demo'."
+                    ),
+                    "provider": "rule_based",
+                }
 
-        completed_task = find_task_to_complete(request.message)
-
-        if completed_task is not None:
             complete_task(completed_task["id"])
 
-            # Rebuild the plan after the task is marked complete.
+            available_minutes = request.available_minutes
+
+            if available_minutes is None:
+                available_minutes = extract_available_minutes(
+                    request.message
+                )
+
             result = handle_request(
                 message=request.message,
                 plan_date=request.plan_date.isoformat(),
-                available_minutes=(
-                    request.available_minutes
-                    if request.available_minutes is not None
-                    else extract_available_minutes(request.message)
-                ),
+                available_minutes=available_minutes,
             )
 
-            result["available_minutes"] = (
-                request.available_minutes
-                if request.available_minutes is not None
-                else extract_available_minutes(request.message)
-            )
+            result["available_minutes"] = available_minutes
+            result["intent"] = "complete_task"
             result["completed_task"] = completed_task["title"]
             result["assistant_response"] = (
                 f"Great work! I've marked '{completed_task['title']}' "
@@ -371,7 +431,7 @@ def assistant_endpoint(request: AssistantRequest):
 
             return result
 
-        # Explicit API value takes priority over message extraction.
+        # 5. Generate a plan or handle other requests.
         available_minutes = request.available_minutes
 
         if available_minutes is None:
@@ -400,8 +460,6 @@ def assistant_endpoint(request: AssistantRequest):
             status_code=500,
             detail="DayPilot couldn't process this request.",
         ) from exc
-
-
 
 
 @app.post("/speech")
