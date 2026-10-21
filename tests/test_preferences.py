@@ -8,18 +8,23 @@ from app.server import mcp_server
 from app.tools import storage
 
 
+
 @pytest.fixture
 def isolated_data(tmp_path, monkeypatch):
-    """Keep tests away from the real DayPilot data file."""
+    """Keep tests away from the real DayPilot data files."""
     data_dir = tmp_path / "data"
     data_file = data_dir / "daypilot_data.json"
+    demo_data_file = data_dir / "daypilot_demo.json"
 
+    monkeypatch.setenv("DAYPILOT_MODE", "development")
     monkeypatch.setattr(storage, "DATA_DIR", data_dir)
     monkeypatch.setattr(storage, "DATA_FILE", data_file)
+    monkeypatch.setattr(storage, "DEMO_DATA_FILE", demo_data_file)
     monkeypatch.setattr(mcp_server, "load_data", storage.load_data)
     monkeypatch.setattr(mcp_server, "save_data", storage.save_data)
 
     storage.save_data(deepcopy(storage.DEFAULT_DATA))
+
 
 
 def test_update_preferences_persists_changes(isolated_data):

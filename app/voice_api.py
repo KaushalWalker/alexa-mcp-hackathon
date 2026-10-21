@@ -1,8 +1,8 @@
 
 import os
 import re
-from datetime import date
 from pathlib import Path
+from datetime import date, timedelta
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -36,6 +36,22 @@ class AssistantRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1000)
     plan_date: date = Field(default_factory=date.today)
     available_minutes: int | None = Field(default=None, ge=1)
+
+def extract_plan_date(message: str, default_date: date) -> date:
+    """Resolve common relative dates in planning requests."""
+
+    text = message.lower()
+
+    if re.search(r"\bday after tomorrow\b", text):
+        return default_date + timedelta(days=2)
+
+    if re.search(r"\btomorrow\b", text):
+        return default_date + timedelta(days=1)
+
+    if re.search(r"\btoday\b", text):
+        return default_date
+
+    return default_date
 
 
 def extract_available_minutes(message: str) -> int | None:
@@ -102,8 +118,9 @@ def extract_available_minutes(message: str) -> int | None:
 
 
 
+
 def find_task_to_complete(message: str) -> dict | None:
-    """Find one pending task named in a completion request."""
+    """Find one pending task, allowing natural variations in phrasing."""
 
     text = message.lower().strip()
 
@@ -122,6 +139,12 @@ def find_task_to_complete(message: str) -> dict | None:
     if not any(phrase in text for phrase in completion_phrases):
         return None
 
+    def normalize(value: str) -> str:
+        value = re.sub(r"[^\w\s]", " ", value.lower())
+        value = re.sub(r"\b(my|the|a|an)\b", " ", value)
+        return " ".join(value.split())
+
+    normalized_text = normalize(text)
     data = load_data()
     matches = []
 
@@ -130,11 +153,10 @@ def find_task_to_complete(message: str) -> dict | None:
             continue
 
         title = task["title"].lower().strip()
-        title_variants = {title}
-
-        # Support natural progressive forms:
-        # "prepare my demo" -> "preparing my demo"
         words = title.split()
+        variants = {normalize(title)}
+
+        # Support simple progressive forms, e.g. prepare -> preparing.
         if words:
             verb = words[0]
             if verb.endswith("e"):
@@ -142,19 +164,20 @@ def find_task_to_complete(message: str) -> dict | None:
             else:
                 progressive_verb = verb + "ing"
 
-            title_variants.add(
-                " ".join([progressive_verb, *words[1:]])
+            progressive_title = " ".join(
+                [progressive_verb, *words[1:]]
             )
+            variants.add(normalize(progressive_title))
 
-        if any(
-            re.search(
+        for variant in variants:
+            if variant and re.search(
                 rf"(?<!\w){re.escape(variant)}(?!\w)",
-                text,
-            )
-            for variant in title_variants
-        ):
-            matches.append(task)
+                normalized_text,
+            ):
+                matches.append(task)
+                break
 
+    # Never guess if multiple pending tasks match.
     if len(matches) != 1:
         return None
 
@@ -218,8 +241,9 @@ def extract_new_task(message: str) -> dict | None:
 
     duration = 30
 
+
     duration_match = re.search(
-        r"\s+for\s+(\d+)\s*(minutes?|mins?)$",
+        r"\s+for\s+(\d+)\s*(minutes?|mins?)(?:\s*[.!?])?$",
         title,
         re.IGNORECASE,
     )
@@ -228,8 +252,11 @@ def extract_new_task(message: str) -> dict | None:
         duration = int(duration_match.group(1))
         title = title[:duration_match.start()].strip()
 
+    title = title.rstrip(" .!?")
+
     if not title:
         return None
+
 
     return {
         "title": title,
@@ -319,6 +346,10 @@ def health_check():
 def assistant_endpoint(request: AssistantRequest):
     try:
         intent = detect_intent(request.message)
+        plan_date = extract_plan_date(
+            request.message,
+            request.plan_date,
+        )
 
         # 1. List pending tasks.
         if intent == "list_tasks":
@@ -349,7 +380,7 @@ def assistant_endpoint(request: AssistantRequest):
 
             result = handle_request(
                 message=request.message,
-                plan_date=request.plan_date.isoformat(),
+                plan_date=plan_date.isoformat(),
                 available_minutes=available_minutes,
             )
 
@@ -416,7 +447,7 @@ def assistant_endpoint(request: AssistantRequest):
 
             result = handle_request(
                 message=request.message,
-                plan_date=request.plan_date.isoformat(),
+                plan_date=plan_date.isoformat(),
                 available_minutes=available_minutes,
             )
 
@@ -441,7 +472,7 @@ def assistant_endpoint(request: AssistantRequest):
 
         result = handle_request(
             message=request.message,
-            plan_date=request.plan_date.isoformat(),
+            plan_date=plan_date.isoformat(),
             available_minutes=available_minutes,
         )
 

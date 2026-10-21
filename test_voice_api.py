@@ -86,7 +86,13 @@ def test_real_completion_persists_and_replans_in_temporary_data(
 
     test_file.write_text(json.dumps(test_data), encoding="utf-8")
 
+    monkeypatch.setenv("DAYPILOT_MODE", "development")
     monkeypatch.setattr(storage, "DATA_FILE", test_file)
+    monkeypatch.setattr(
+        storage,
+        "DEMO_DATA_FILE",
+        tmp_path / "daypilot_demo.json",
+    )
     monkeypatch.setattr(mcp_server, "load_data", storage.load_data)
     monkeypatch.setattr(mcp_server, "save_data", storage.save_data)
 

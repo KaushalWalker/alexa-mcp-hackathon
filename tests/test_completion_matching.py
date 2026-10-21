@@ -90,3 +90,27 @@ def test_completed_tasks_are_not_matched(monkeypatch):
     )
 
     assert result is None
+
+
+
+def test_completion_matches_demo_task_with_extra_words(monkeypatch):
+    monkeypatch.setattr(
+        voice_api,
+        "load_data",
+        lambda: {
+            "tasks": [
+                {
+                    "id": "demo-task-001",
+                    "title": "Prepare AI project presentation",
+                    "status": "pending",
+                }
+            ]
+        },
+    )
+
+    result = voice_api.find_task_to_complete(
+        "I finished preparing my AI project presentation"
+    )
+
+    assert result is not None
+    assert result["id"] == "demo-task-001"
