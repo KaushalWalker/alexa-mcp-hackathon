@@ -13,7 +13,8 @@ def test_health_endpoint():
     assert response.json()["status"] == "ok"
 
 
-def test_assistant_endpoint_returns_plan():
+def test_assistant_endpoint_returns_plan(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
     response = client.post(
         "/assistant",
         json={

@@ -130,11 +130,15 @@ def handle_request(
     if provider == "mock":
         response = plan_summary
     else:
-        client = get_llm_client()
-        response = client.generate(
-            f"User request: {message}\n"
-            f"Daily plan data: {plan}"
-        )
+        try:
+            client = get_llm_client()
+            response = client.generate(
+                f"User request: {message}\n"
+                f"Daily plan data: {plan}"
+            )
+        except Exception:
+            response = plan_summary
+            provider = "fallback"
 
     return {
         "message": message,

@@ -2,7 +2,8 @@
 from app.llm.assistant import handle_request, build_plan_summary
 
 
-def test_assistant_returns_plan_and_response():
+def test_assistant_returns_plan_and_response(monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
     result = handle_request(
         message="Help me organize my day",
         plan_date="2026-10-12",

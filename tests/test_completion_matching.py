@@ -114,3 +114,59 @@ def test_completion_matches_demo_task_with_extra_words(monkeypatch):
 
     assert result is not None
     assert result["id"] == "demo-task-001"
+
+
+
+def test_ambiguous_completion_does_not_guess(monkeypatch):
+    monkeypatch.setattr(
+        voice_api,
+        "load_data",
+        lambda: {
+            "tasks": [
+                {
+                    "id": "task-001",
+                    "title": "practice demo video",
+                    "status": "pending",
+                },
+                {
+                    "id": "task-002",
+                    "title": "finish hackathon demo video",
+                    "status": "pending",
+                },
+            ]
+        },
+    )
+
+    result = voice_api.find_task_to_complete(
+        "I finished my hackathon demo video"
+    )
+
+    # The matcher must not select a task unless its title matches.
+    assert result is None
+
+
+def test_completion_does_not_match_only_partial_task_title(monkeypatch):
+    monkeypatch.setattr(
+        voice_api,
+        "load_data",
+        lambda: {
+            "tasks": [
+                {
+                    "id": "task-001",
+                    "title": "practice demo video",
+                    "status": "pending",
+                },
+                {
+                    "id": "task-002",
+                    "title": "finish hackathon project",
+                    "status": "pending",
+                },
+            ]
+        },
+    )
+
+    result = voice_api.find_task_to_complete(
+        "I finished my hackathon demo video"
+    )
+
+    assert result is None
