@@ -1,420 +1,427 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DayPilot Voice Assistant</title>
-
+  <meta name="theme-color" content="#f7faf7">
+  <title>DayPilot — Your AI Day Planner</title>
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 760px;
-      margin: 40px auto;
-      padding: 20px;
-      line-height: 1.5;
-      background: #f5f7fb;
-      color: #172033;
+    :root {
+      color-scheme: light;
+      --bg: #f6f8f5;
+      --surface: #ffffff;
+      --surface-soft: #f0f6f1;
+      --border: #e1e9e1;
+      --text: #202d27;
+      --muted: #718078;
+      --accent: #27856d;
+      --accent-dark: #17634f;
+      --accent-soft: #e4f3ec;
+      --sage: #5c9672;
+      --danger: #c65c4d;
+      --danger-soft: #fff0ed;
+      --shadow: 0 8px 28px rgba(34, 66, 48, .055);
+      --radius: 18px;
     }
-
-    main {
-      background: white;
-      padding: 24px;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px #0000000d;
-    }
-
-    textarea, input, button {
-      box-sizing: border-box;
-      width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      font: inherit;
-      border-radius: 8px;
-    }
-
-    textarea, input {
-      border: 1px solid #ccd2df;
-    }
-
-    button {
-      border: 0;
-      background: #2457d6;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .secondary {
-      background: #475569;
-    }
-
-    pre {
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      background: #f1f4f9;
-      padding: 12px;
-      border-radius: 8px;
-    }
-
-    #status, #speechStatus {
-      color: #475569;
-    }
-
-    audio {
-      width: 100%;
-      margin: 8px 0;
-    }
-
-    .note {
-      color: #64748b;
-      font-size: 0.9rem;
-    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: var(--text); background: var(--bg); font: 15px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #27856d50; outline-offset: 2px; }
+    .app { max-width: 1440px; min-height: 100vh; margin: auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+    aside { padding: 26px 16px; display: flex; flex-direction: column; background: var(--surface); border-right: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: 10px; margin: 0 0 34px; font-size: 20px; font-weight: 800; letter-spacing: -.6px; }
+    .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 13px; color: white; background: var(--accent); font-size: 22px; }
+    .nav-label, .eyebrow { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; }
+    .nav-label { margin: 0 10px 10px; }
+    .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 12px; margin-bottom: 5px; border: 1px solid transparent; border-radius: 11px; background: transparent; color: var(--muted); text-align: left; transition: .18s ease; }
+    .nav-item:hover, .nav-item.active { color: var(--accent-dark); background: var(--accent-soft); border-color: #d0e9dc; }
+    .nav-icon { width: 20px; text-align: center; color: var(--accent); }
+    .sidebar-bottom { margin-top: auto; padding: 15px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-soft); }
+    .sidebar-bottom strong { font-size: 13px; }
+    .sidebar-bottom p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+    .main { min-width: 0; padding: 28px clamp(16px, 3vw, 40px) 40px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .topbar-title { color: var(--muted); font-size: 13px; }
+    .date-control { display: flex; align-items: center; gap: 8px; padding: 8px 11px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--muted); font-size: 12px; }
+    input[type="date"] { width: 132px; color: var(--text); border: 0; background: transparent; outline: none; }
+    .welcome { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 28px 0 22px; }
+    .eyebrow { color: var(--accent); }
+    h1 { margin: 6px 0 5px; font-size: clamp(28px, 3.5vw, 38px); line-height: 1.18; letter-spacing: -1.2px; font-weight: 780; }
+    .welcome p { margin: 0; color: var(--muted); }
+    .welcome-pill { padding: 8px 12px; border: 1px solid #d7eade; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); font-size: 12px; white-space: nowrap; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .8fr); gap: 18px; align-items: start; }
+    .column { display: grid; gap: 18px; min-width: 0; }
+    .card { min-width: 0; padding: 21px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .command-card { border-top: 3px solid var(--accent); }
+    .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .heading-left { display: flex; align-items: center; gap: 11px; }
+    .heading-icon { width: 36px; height: 36px; display: grid; place-items: center; flex: 0 0 36px; border-radius: 11px; background: var(--accent-soft); color: var(--accent-dark); font-size: 17px; }
+    h2 { margin: 0; font-size: 16px; letter-spacing: -.2px; }
+    .subtle { color: var(--muted); font-size: 12px; }
+    textarea { display: block; width: 100%; min-height: 112px; resize: vertical; padding: 14px; border: 1px solid #dce6de; border-radius: 13px; background: #fbfdfb; color: var(--text); line-height: 1.6; transition: border-color .18s, box-shadow .18s; }
+    textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #27856d12; outline: none; }
+    textarea::placeholder { color: #96a39a; }
+    .quick-prompts { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 12px 0 17px; }
+    .quick-label { margin-right: 2px; color: var(--muted); font-size: 11px; }
+    .chip { padding: 7px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: #53645a; font-size: 11px; transition: .18s; }
+    .chip:hover { border-color: #a8d0ba; color: var(--accent-dark); background: var(--accent-soft); }
+    .actions { display: flex; gap: 9px; align-items: center; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--surface); color: var(--text); font-weight: 650; font-size: 13px; transition: transform .15s, background .18s, border-color .18s; }
+    .btn:hover:not(:disabled) { transform: translateY(-1px); border-color: #a8cdb8; }
+    .btn-primary { flex: 1; border-color: var(--accent); color: white; background: var(--accent); box-shadow: 0 4px 12px #27856d1a; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
+    .mic-button { width: 44px; min-width: 44px; padding: 0; color: var(--accent-dark); background: var(--accent-soft); border-color: #d4eadd; font-size: 18px; }
+    .mic-button.listening { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 6px #c65c4d12; } }
+    .status { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; color: var(--muted); font-size: 12px; }
+    .status-dot { flex: 0 0 7px; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: #a0aaa3; }
+    .status[data-state="success"] .status-dot { background: var(--sage); }
+    .status[data-state="error"] .status-dot { background: var(--danger); }
+    .status[data-state="busy"] .status-dot { background: var(--accent); animation: blink 1s infinite alternate; }
+    @keyframes blink { to { opacity: .35; } }
+    .response-content { min-height: 45px; padding: 13px 14px; border-radius: 12px; background: #f8fbf8; color: #46584d; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+    .placeholder { color: #96a39a; }
+    .summary-content { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #fbfdfb; color: #53645a; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+    .plan-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-bottom: 14px; }
+    .stat { padding: 12px; border: 1px solid var(--border); border-radius: 13px; background: #fbfdfb; }
+    .stat strong { display: block; font-size: 22px; line-height: 1.3; color: var(--accent-dark); }
+    .stat span { color: var(--muted); font-size: 10px; }
+    .schedule-list { display: grid; gap: 8px; }
+    .schedule-item { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    .schedule-item.break-item { background: #f7faf6; border-style: dashed; }
+    .schedule-time { color: var(--accent-dark); font-size: 11px; font-weight: 750; line-height: 1.55; white-space: pre-line; }
+    .schedule-title { color: var(--text); font-weight: 650; font-size: 13px; overflow-wrap: anywhere; }
+    .schedule-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+    .tag { display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-dark); font-size: 10px; }
+    .tag.priority-high { background: #fff0d9; color: #98601c; }
+    .tag.priority-medium { background: #f4f0df; color: #84713c; }
+    .tag.priority-low { background: #e7f4e9; color: #467c57; }
+    .empty-plan { padding: 20px 14px; border: 1px dashed #d8e4da; border-radius: 12px; color: var(--muted); text-align: center; font-size: 13px; background: #fbfdfb; }
+    .voice-options { display: grid; gap: 9px; }
+    .voice-option { display: flex; align-items: center; gap: 11px; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); text-align: left; transition: .18s; }
+    .voice-option:hover:not(:disabled) { border-color: #acd2bb; background: #f8fcf8; }
+    .voice-symbol { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 11px; background: var(--accent-soft); color: var(--accent-dark); font-size: 17px; }
+    .voice-copy { flex: 1; min-width: 0; }
+    .voice-copy strong { display: block; font-size: 13px; }
+    .voice-copy small { display: block; color: var(--muted); font-size: 11px; }
+    .voice-arrow { color: var(--accent); }
+    audio { display: none; width: 100%; margin-top: 12px; }
+    .data-toggle { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); text-align: left; }
+    .data-toggle span:last-child { padding: 6px 9px; border: 1px solid var(--border); border-radius: 9px; color: var(--accent-dark); background: var(--surface-soft); font-size: 11px; }
+    pre { max-height: 340px; overflow: auto; margin: 14px 0 0; padding: 14px; border: 1px solid #e1e8e3; border-radius: 11px; background: #f7faf8; color: #3e5547; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .hidden { display: none !important; }
+    .reminder { display: flex; gap: 11px; align-items: flex-start; }
+    .reminder-icon { width: 35px; height: 35px; flex: 0 0 35px; display: grid; place-items: center; border-radius: 11px; background: #fff2d8; color: #9c7128; }
+    .reminder p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 26px; padding-top: 17px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+    .footer-brand { color: var(--accent-dark); font-weight: 750; }
+    @media (max-width: 950px) { .app { grid-template-columns: 1fr; } aside { flex-direction: row; align-items: center; justify-content: space-between; gap: 15px; padding: 13px 20px; border-right: 0; border-bottom: 1px solid var(--border); } .brand { margin: 0; } aside > div:nth-child(2), .sidebar-bottom { display: none; } .main { padding-top: 20px; } }
+    @media (max-width: 760px) { .workspace { grid-template-columns: 1fr; } .welcome { align-items: flex-start; flex-direction: column; gap: 10px; } }
+    @media (max-width: 520px) { .main { padding: 15px 12px 26px; } .card { padding: 16px; } .topbar { align-items: flex-start; } .topbar-title { padding-top: 9px; } .date-control { gap: 4px; padding: 7px; } input[type="date"] { width: 120px; font-size: 11px; } .plan-stats { gap: 6px; } .stat { padding: 9px 7px; } .stat strong { font-size: 19px; } .stat span { font-size: 9px; } .schedule-item { grid-template-columns: 70px minmax(0, 1fr); gap: 8px; padding: 10px; } footer { flex-direction: column; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
   </style>
 </head>
-
 <body>
-  <main>
-    <h1>🎙️ DayPilot</h1>
-    <p>Your voice-first daily planning assistant.</p>
+  <div class="app">
+    <aside>
+      <div class="brand"><span class="brand-mark" aria-hidden="true">✳</span><span>DayPilot</span></div>
+      <div>
+        <p class="nav-label">Workspace</p>
+        <button class="nav-item active" type="button" data-scroll="commandCard"><span class="nav-icon">✧</span> AI Assistant</button>
+        <button class="nav-item" type="button" data-scroll="summaryCard"><span class="nav-icon">▤</span> Daily Plan</button>
+        <button class="nav-item" type="button" data-scroll="voiceCard"><span class="nav-icon">♫</span> Voice Settings</button>
+      </div>
+      <div class="sidebar-bottom"><strong>✦ Your day, in focus</strong><p>One conversation at a time. Let DayPilot help organize the rest.</p></div>
+    </aside>
 
-    <label for="planDate">Planning date</label>
-    <input id="planDate" type="date">
+    <main class="main">
+      <header class="topbar"><span class="topbar-title">Your personal productivity workspace</span><label class="date-control" for="planDate"><span aria-hidden="true">▦</span><input id="planDate" type="date" aria-label="Planning date"></label></header>
+      <section class="welcome"><div><div class="eyebrow">YOUR AI DAY PLANNER</div><h1>Make today count.</h1><p>Tell DayPilot what you need. We'll work through your day, together.</p></div><div class="welcome-pill">● A calmer way to plan</div></section>
 
-    <label for="message">Your request</label>
-    <textarea
-      id="message"
-      rows="3"
-      placeholder="For example: Help me organize my day"
-    ></textarea>
+      <div class="workspace">
+        <div class="column">
+          <section class="card command-card" id="commandCard">
+            <div class="card-heading"><div class="heading-left"><span class="heading-icon" aria-hidden="true">✧</span><div><div class="eyebrow">COMMAND CENTER</div><h2 style="margin-top:3px">What's on your mind?</h2></div></div></div>
+            <label class="subtle" for="message">YOUR INSTRUCTION</label>
+            <textarea id="message" rows="4" maxlength="2000" placeholder="Try: Plan my remaining tasks for tomorrow..." aria-describedby="keyboardHint"></textarea>
+            <div class="quick-prompts" aria-label="Suggested requests"><span class="quick-label">Quick prompts</span><button class="chip" type="button" data-prompt="Show my pending tasks">◷ Pending tasks</button><button class="chip" type="button" data-prompt="Plan my remaining tasks for tomorrow">✧ Plan tomorrow</button><button class="chip" type="button" data-prompt="Help me organize my day">▤ Organize my day</button></div>
+            <div class="actions"><button id="listenButton" class="btn mic-button" type="button" aria-label="Start voice input" title="Speak your request">🎙</button><button id="sendButton" class="btn btn-primary" type="button"><span id="sendLabel">Ask DayPilot</span><span aria-hidden="true">→</span></button></div>
+            <div class="subtle" id="keyboardHint" style="display:flex;justify-content:space-between;gap:8px;margin-top:10px"><span>Tip: Ctrl + Enter to send.</span><span id="charCount">0 / 2000</span></div>
+            <div id="status" class="status" role="status" aria-live="polite" data-state="idle"><span class="status-dot"></span><span id="statusMessage">Ready when you are.</span></div>
+          </section>
 
-    <button id="listenButton" type="button">
-      🎤 Start listening
-    </button>
+          <section class="card" id="responseCard"><div class="card-heading"><div class="heading-left"><span class="heading-icon" aria-hidden="true">☏</span><div><h2>Assistant response</h2><div class="subtle">DAYPILOT</div></div></div><button id="copyResponseButton" class="btn" type="button" style="min-height:32px;padding:6px 10px;font-size:11px">Copy response</button></div><div id="response" class="response-content placeholder" aria-live="polite">Your conversation will appear here.</div><div id="responseCopyStatus" class="subtle" role="status" style="margin-top:7px"></div></section>
 
-    <button id="sendButton" type="button">
-      Send to DayPilot
-    </button>
+          <section class="card" id="summaryCard">
+            <div class="card-heading"><div class="heading-left"><span class="heading-icon" aria-hidden="true">▤</span><div><h2>Daily plan</h2><div class="subtle">YOUR SCHEDULE</div></div></div><span class="subtle">Time-blocked view</span></div>
+            <div id="planStats" class="plan-stats hidden"><div class="stat"><strong id="minutesStat">—</strong><span>Minutes planned</span></div><div class="stat"><strong id="tasksStat">—</strong><span>Tasks fully scheduled</span></div><div class="stat"><strong id="unscheduledStat">—</strong><span>Need more time</span></div></div>
+            <div id="scheduleList" class="schedule-list"><div class="empty-plan">Your scheduled tasks will appear here after your first request.</div></div>
+            <div id="planSummary" class="summary-content placeholder">Your daily plan summary will appear here after your first request.</div>
+          </section>
+        </div>
 
-    <p id="status" role="status">Ready.</p>
+        <div class="column">
+          <section class="card" id="voiceCard"><div class="card-heading"><div class="heading-left"><span class="heading-icon" aria-hidden="true">♫</span><div><h2>Listen to DayPilot</h2><div class="subtle">Hear your assistant's latest response.</div></div></div></div>
+            <div class="voice-options"><button id="speakButton" class="voice-option" type="button"><span class="voice-symbol">🔊</span><span class="voice-copy"><strong>Browser voice</strong><small>Free · Uses your browser</small></span><span class="voice-arrow">→</span></button><button id="naturalVoiceButton" class="voice-option" type="button"><span class="voice-symbol">✧</span><span class="voice-copy"><strong>Natural AI voice</strong><small>AI-generated speech</small></span><span class="voice-arrow">→</span></button></div>
+            <audio id="naturalAudio" controls></audio><div id="speechStatus" class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="speechMessage">Generate a response, then choose a voice.</span></div>
+          </section>
 
-    <h2>Assistant response</h2>
-    <pre id="response">Your response will appear here.</pre>
+          <section class="card" id="dataCard"><button id="dataToggle" class="data-toggle" type="button" aria-expanded="false" aria-controls="plan"><span><span class="eyebrow">UNDER THE HOOD</span><strong style="display:block;margin-top:4px">Generated plan data</strong></span><span id="toggleLabel">Show JSON ＋</span></button><div id="plan" class="hidden"><pre id="planJson">Your structured plan will appear here.</pre><button id="copyPlanButton" class="btn" type="button" style="width:100%;margin-top:10px">Copy plan JSON</button><div id="copyStatus" class="subtle" role="status" style="margin-top:8px"></div></div></section>
 
-    <h2>Your daily plan summary</h2>
-    <pre id="planSummary">Your summary will appear here.</pre>
-
-    <h2>Choose your voice</h2>
-
-    <button id="speakButton" type="button" class="secondary">
-      🔊 Listen with browser voice (Free)
-    </button>
-
-    <button id="naturalVoiceButton" type="button">
-      🎙️ Listen with natural AI voice
-    </button>
-
-    <p class="note">
-      Natural AI voice is generated using an AI speech service.
-      If it fails, DayPilot will try the free browser voice instead.
-    </p>
-
-    <p id="speechStatus" role="status">
-      Generate a plan, then choose your preferred voice.
-    </p>
-
-    <audio id="naturalAudio" controls></audio>
-
-    <h2>Generated plan</h2>
-    <pre id="plan">Your plan will appear here.</pre>
-  </main>
+          <section class="card"><div class="reminder"><span class="reminder-icon" aria-hidden="true">✦</span><div><h2 style="font-size:14px">A little reminder</h2><p>You don't need to figure out the whole day at once.</p><p>Start with the next useful step. Adjust the plan as life happens.</p></div></div></section>
+        </div>
+      </div>
+      <footer><span><span class="footer-brand">✳ DayPilot</span> · Your voice-first AI day planner</span><span>Built to help you focus on what matters.</span></footer>
+    </main>
+  </div>
 
   <script>
     const messageInput = document.getElementById("message");
     const dateInput = document.getElementById("planDate");
-    const statusText = document.getElementById("status");
+    const statusBox = document.getElementById("status");
+    const statusMessage = document.getElementById("statusMessage");
     const responseBox = document.getElementById("response");
     const summaryBox = document.getElementById("planSummary");
-    const planBox = document.getElementById("plan");
-
+    const planJson = document.getElementById("planJson");
+    const scheduleList = document.getElementById("scheduleList");
+    const planStats = document.getElementById("planStats");
     const listenButton = document.getElementById("listenButton");
     const sendButton = document.getElementById("sendButton");
+    const sendLabel = document.getElementById("sendLabel");
     const speakButton = document.getElementById("speakButton");
-    const naturalVoiceButton =
-      document.getElementById("naturalVoiceButton");
-
-    const speechStatus = document.getElementById("speechStatus");
+    const naturalVoiceButton = document.getElementById("naturalVoiceButton");
+    const speechMessage = document.getElementById("speechMessage");
     const naturalAudio = document.getElementById("naturalAudio");
-
+    const dataToggle = document.getElementById("dataToggle");
+    const dataPanel = document.getElementById("plan");
+    const toggleLabel = document.getElementById("toggleLabel");
+    const copyStatus = document.getElementById("copyStatus");
     let lastSpokenResponse = "";
     let naturalAudioUrl = null;
+    let recognition = null;
+    let isListening = false;
+    let requestInProgress = false;
 
-    // Use a local date to avoid UTC timezone shifts.
     function getLocalDate() {
       const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const day = String(now.getDate()).padStart(2, "0");
-
-      return `${year}-${month}-${day}`;
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     }
-
     dateInput.value = getLocalDate();
-
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    function stopCurrentSpeech() {
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-
-      naturalAudio.pause();
-      naturalAudio.currentTime = 0;
+    function setStatus(message, state = "idle") { statusMessage.textContent = message; statusBox.dataset.state = state; }
+    function setSpeechStatus(message, state = "idle") {
+      speechMessage.textContent = message;
+      const dot = document.querySelector("#speechStatus .status-dot");
+      dot.style.background = state === "success" ? "var(--sage)" : state === "error" ? "var(--danger)" : state === "busy" ? "var(--accent)" : "";
     }
-
+    function setPlaceholder(element, message) { element.textContent = message; element.classList.add("placeholder"); }
+    function setContent(element, value) { element.textContent = value || ""; element.classList.remove("placeholder"); }
+    function stopCurrentSpeech() {
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      naturalAudio.pause(); naturalAudio.currentTime = 0;
+    }
     function speak(text) {
-      if (!("speechSynthesis" in window)) {
-        speechStatus.textContent =
-          "Browser speech is not supported in this browser.";
-        return;
-      }
-
+      if (!("speechSynthesis" in window)) { setSpeechStatus("Browser speech is not supported in this browser.", "error"); return; }
       stopCurrentSpeech();
-
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "en-IN";
-
-      utterance.onstart = () => {
-        speechStatus.textContent = "Playing free browser voice.";
-      };
-
-      utterance.onend = () => {
-        speechStatus.textContent = "Browser voice finished.";
-      };
-
-      utterance.onerror = () => {
-        speechStatus.textContent = "Browser voice could not play.";
-      };
-
+      utterance.onstart = () => setSpeechStatus("Playing browser voice.", "success");
+      utterance.onend = () => setSpeechStatus("Browser voice finished.", "success");
+      utterance.onerror = () => setSpeechStatus("Browser voice could not play.", "error");
       window.speechSynthesis.speak(utterance);
     }
+    function createTag(label, className = "") {
+      const tag = document.createElement("span");
+      tag.className = `tag ${className}`.trim();
+      tag.textContent = label;
+      return tag;
+    }
+    function formatTime(value) {
+      if (!value) return "Time TBD";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    function getDuration(item) {
+      if (Number.isFinite(item.duration_minutes)) return item.duration_minutes;
+      if (Number.isFinite(item.minutes)) return item.minutes;
+      if (item.start && item.end) {
+        const mins = (new Date(item.end) - new Date(item.start)) / 60000;
+        if (Number.isFinite(mins) && mins > 0) return Math.round(mins);
+      }
+      return null;
+    }
+    function renderSchedule(plan) {
+      const scheduled = Array.isArray(plan?.scheduled) ? plan.scheduled : [];
+      const unscheduled = Array.isArray(plan?.unscheduled) ? plan.unscheduled : [];
+      const taskBlocks = scheduled.filter(item => item.type !== "break");
+      const scheduledMinutes = taskBlocks.reduce((total, item) => total + (Number(getDuration(item)) || 0), 0);
+      const fullyScheduled = Number(plan?.summary?.fully_scheduled_tasks ?? 0);
+      scheduleList.replaceChildren();
+      planStats.classList.remove("hidden");
+      document.getElementById("minutesStat").textContent = scheduledMinutes;
+      document.getElementById("tasksStat").textContent = fullyScheduled;
+      document.getElementById("unscheduledStat").textContent = unscheduled.length;
 
-    // Speech recognition: microphone to text.
-    if (!SpeechRecognition) {
-      listenButton.disabled = true;
-      statusText.textContent =
-        "Speech recognition is unavailable. Try a recent version of Chrome or Edge.";
+      if (!scheduled.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-plan";
+        empty.textContent = "No tasks are scheduled for this date.";
+        scheduleList.append(empty);
+      } else {
+        scheduled.forEach(item => {
+          const row = document.createElement("article");
+          row.className = "schedule-item";
+          if (item.type === "break") row.classList.add("break-item");
+          const time = document.createElement("div");
+          time.className = "schedule-time";
+          time.textContent = `${formatTime(item.start)}\n${item.end ? formatTime(item.end) : ""}`;
+          const detail = document.createElement("div");
+          const title = document.createElement("div");
+          title.className = "schedule-title";
+          title.textContent = item.title || (item.type === "break" ? "Break" : "Scheduled task");
+          detail.append(title);
+          const meta = document.createElement("div");
+          meta.className = "schedule-meta";
+          const duration = getDuration(item);
+          if (duration !== null) meta.append(createTag(`${duration} min`));
+          if (item.type === "break") meta.append(createTag("Break"));
+          if (item.priority && item.type !== "break") {
+            const priority = String(item.priority).toLowerCase();
+            meta.append(createTag(`${priority} priority`, `priority-${priority}`));
+          }
+          if (item.overdue) meta.append(createTag("Overdue", "priority-high"));
+          if (meta.childNodes.length) detail.append(meta);
+          row.append(time, detail);
+          scheduleList.append(row);
+        });
+      }
+      if (unscheduled.length) {
+        const heading = document.createElement("div");
+        heading.className = "subtle";
+        heading.style.marginTop = "12px";
+        heading.textContent = "NEED MORE TIME";
+        scheduleList.append(heading);
+        unscheduled.forEach(task => {
+          const row = document.createElement("article");
+          row.className = "schedule-item";
+          const time = document.createElement("div");
+          time.className = "schedule-time";
+          time.textContent = "Unscheduled";
+          const detail = document.createElement("div");
+          const title = document.createElement("div");
+          title.className = "schedule-title";
+          title.textContent = task.title || "Untitled task";
+          detail.append(title);
+          const meta = document.createElement("div");
+          meta.className = "schedule-meta";
+          const remaining = Number(task.minutes_remaining);
+          if (task.minutes_remaining != null && Number.isFinite(remaining)) meta.append(createTag(`${remaining} min remaining`, "priority-high"));
+          if (meta.childNodes.length) detail.append(meta);
+          if (task.reason) {
+            const reason = document.createElement("div");
+            reason.className = "subtle";
+            reason.style.marginTop = "5px";
+            reason.textContent = task.reason;
+            detail.append(reason);
+          }
+          row.append(time, detail);
+          scheduleList.append(row);
+        });
+      }
     }
 
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      listenButton.disabled = true;
+      listenButton.title = "Speech recognition is unavailable in this browser";
+      listenButton.setAttribute("aria-label", "Voice input unavailable");
+    }
+    function finishListening() {
+      isListening = false;
+      listenButton.classList.remove("listening");
+      listenButton.setAttribute("aria-pressed", "false");
+      listenButton.disabled = !SpeechRecognition;
+    }
     listenButton.addEventListener("click", () => {
-      if (!SpeechRecognition) {
-        return;
-      }
-
-      const recognition = new SpeechRecognition();
+      if (!SpeechRecognition || isListening) return;
+      recognition = new SpeechRecognition();
       recognition.lang = "en-IN";
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        statusText.textContent = "Listening... Speak now.";
-        listenButton.disabled = true;
-      };
-
-      recognition.onresult = (event) => {
-        messageInput.value = event.results[0][0].transcript;
-        statusText.textContent =
-          "Speech captured. Press Send to submit your request.";
-      };
-
-      recognition.onerror = (event) => {
-        statusText.textContent = "Microphone error: " + event.error;
-      };
-
-      recognition.onend = () => {
-        listenButton.disabled = false;
-      };
-
-      try {
-        recognition.start();
-      } catch (error) {
-        statusText.textContent =
-          "Could not start microphone: " + error.message;
-        listenButton.disabled = false;
-      }
+      recognition.onstart = () => { isListening = true; listenButton.classList.add("listening"); listenButton.setAttribute("aria-pressed", "true"); setStatus("Listening… speak your request now.", "busy"); };
+      recognition.onresult = event => { messageInput.value = event.results[0][0].transcript; updateCharCount(); setStatus("Voice captured. Review your request, then send it.", "success"); messageInput.focus(); };
+      recognition.onerror = event => setStatus("Microphone error: " + event.error, "error");
+      recognition.onend = () => { finishListening(); recognition = null; };
+      try { recognition.start(); } catch (error) { finishListening(); recognition = null; setStatus("Could not start microphone: " + error.message, "error"); }
     });
+    function updateCharCount() { document.getElementById("charCount").textContent = `${messageInput.value.length} / 2000`; }
+    messageInput.addEventListener("input", updateCharCount);
+    document.querySelectorAll("[data-prompt]").forEach(button => button.addEventListener("click", () => { messageInput.value = button.dataset.prompt; updateCharCount(); messageInput.focus(); }));
+    document.querySelectorAll("[data-scroll]").forEach(button => button.addEventListener("click", () => {
+      document.getElementById(button.dataset.scroll).scrollIntoView({ behavior: "smooth", block: "start" });
+      document.querySelectorAll(".nav-item").forEach(item => item.classList.toggle("active", item === button));
+    }));
+    messageInput.addEventListener("keydown", event => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); sendRequest(); } });
 
-    // Send the user's request to DayPilot.
     async function sendRequest() {
       const message = messageInput.value.trim();
-
-      if (!message) {
-        statusText.textContent =
-          "Please type or speak a request first.";
-        return;
-      }
-
-      stopCurrentSpeech();
-      sendButton.disabled = true;
-      statusText.textContent = "DayPilot is preparing your plan...";
-
+      if (!message) { setStatus("Type or speak a request first.", "error"); messageInput.focus(); return; }
+      if (requestInProgress) return;
+      stopCurrentSpeech(); requestInProgress = true; sendButton.disabled = true; listenButton.disabled = true; sendLabel.textContent = "Working…"; setStatus("DayPilot is thinking and preparing your plan…", "busy");
       try {
-        const result = await fetch("/assistant", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message,
-            plan_date: dateInput.value
-          })
-        });
-
+        const result = await fetch("/assistant", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, plan_date: dateInput.value }) });
         const data = await result.json();
-
-        if (!result.ok) {
-          throw new Error(data.detail || "Request failed.");
-        }
-
-        summaryBox.textContent = data.plan_summary;
-
+        if (!result.ok) throw new Error(data.detail || "Request failed.");
         const assistantResponse = data.assistant_response || "";
         const planSummary = data.plan_summary || "";
-
-        responseBox.textContent =
-          assistantResponse.trim() === planSummary.trim()
-            ? "Your daily plan summary is shown below."
-            : assistantResponse;
-
-        planBox.textContent = JSON.stringify(data.plan, null, 2);
-
+        setContent(summaryBox, planSummary || "No plan summary was returned.");
+        setContent(responseBox, assistantResponse.trim() === planSummary.trim() ? "Your schedule is laid out below. Start with the first task, and adjust as your day changes." : assistantResponse || "DayPilot returned no assistant response.");
+        renderSchedule(data.plan || {});
+        planJson.textContent = JSON.stringify(data.plan ?? {}, null, 2);
         lastSpokenResponse = assistantResponse || planSummary;
-
-        statusText.textContent =
-          `Plan generated successfully. Provider: ${data.provider}.`;
-
-        speechStatus.textContent =
-          "Choose browser voice or natural AI voice.";
-
-      } catch (error) {
-        statusText.textContent =
-          "Could not generate your plan: " + error.message;
-      } finally {
-        sendButton.disabled = false;
-      }
+        setStatus(`Plan generated successfully · Provider: ${data.provider || "unknown"}.`, "success");
+        setSpeechStatus("Choose a voice to hear the latest response.");
+        document.getElementById("responseCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (error) { setStatus("Could not generate your plan: " + error.message, "error"); }
+      finally { requestInProgress = false; sendButton.disabled = false; if (SpeechRecognition) listenButton.disabled = false; sendLabel.textContent = "Ask DayPilot"; }
     }
-
     sendButton.addEventListener("click", sendRequest);
-
-    // Option 1: free browser voice.
-    speakButton.addEventListener("click", () => {
-      if (!lastSpokenResponse) {
-        speechStatus.textContent = "Generate a plan first.";
-        return;
-      }
-
-      speak(lastSpokenResponse);
-    });
-
-    // Option 2: natural AI voice, with browser-voice fallback.
+    speakButton.addEventListener("click", () => { if (!lastSpokenResponse) { setSpeechStatus("Generate a response first.", "error"); return; } speak(lastSpokenResponse); });
     naturalVoiceButton.addEventListener("click", async () => {
       const text = lastSpokenResponse;
-
-      if (!text) {
-        speechStatus.textContent = "Generate a plan first.";
-        return;
-      }
-
-      stopCurrentSpeech();
-      naturalVoiceButton.disabled = true;
-      speechStatus.textContent = "Generating natural AI speech...";
-
+      if (!text) { setSpeechStatus("Generate a response first.", "error"); return; }
+      stopCurrentSpeech(); naturalVoiceButton.disabled = true; setSpeechStatus("Generating natural AI speech…", "busy");
       try {
-        const response = await fetch("/speech", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message: text,
-            plan_date: dateInput.value
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error("Natural speech service returned an error.");
-        }
-
+        const response = await fetch("/speech", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, plan_date: dateInput.value }) });
+        if (!response.ok) throw new Error("Natural speech service returned an error.");
         const audioBlob = await response.blob();
-
-        if (!audioBlob.size) {
-          throw new Error("The speech service returned empty audio.");
-        }
-
-        if (naturalAudioUrl) {
-          URL.revokeObjectURL(naturalAudioUrl);
-          naturalAudioUrl = null;
-        }
-
-        naturalAudioUrl = URL.createObjectURL(audioBlob);
-        naturalAudio.src = naturalAudioUrl;
-
-        await naturalAudio.play();
-
-        speechStatus.textContent = "Playing natural AI voice.";
-
+        if (!audioBlob.size) throw new Error("The speech service returned empty audio.");
+        if (naturalAudioUrl) URL.revokeObjectURL(naturalAudioUrl);
+        naturalAudioUrl = URL.createObjectURL(audioBlob); naturalAudio.src = naturalAudioUrl; naturalAudio.style.display = "block"; await naturalAudio.play();
+        setSpeechStatus("Playing natural AI voice.", "success");
       } catch (error) {
-        // Clean up failed or unplayable natural audio.
-        naturalAudio.pause();
-        naturalAudio.removeAttribute("src");
-        naturalAudio.load();
-
-        if (naturalAudioUrl) {
-          URL.revokeObjectURL(naturalAudioUrl);
-          naturalAudioUrl = null;
-        }
-
-        if ("speechSynthesis" in window) {
-          speechStatus.textContent =
-            "Natural voice failed. Trying free browser voice...";
-
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = "en-IN";
-
-          utterance.onstart = () => {
-            speechStatus.textContent =
-              "Natural voice unavailable. Playing free browser voice instead.";
-          };
-
-          utterance.onerror = () => {
-            speechStatus.textContent =
-              "Both voice options are currently unavailable.";
-          };
-
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.speak(utterance);
-
-        } else {
-          speechStatus.textContent =
-            "Natural voice failed, and browser speech is unsupported.";
-        }
-
-      } finally {
-        naturalVoiceButton.disabled = false;
-      }
+        naturalAudio.pause(); naturalAudio.removeAttribute("src"); naturalAudio.load(); naturalAudio.style.display = "none";
+        if (naturalAudioUrl) { URL.revokeObjectURL(naturalAudioUrl); naturalAudioUrl = null; }
+        if ("speechSynthesis" in window) { setSpeechStatus("Natural voice unavailable. Trying browser voice…", "busy"); speak(text); }
+        else setSpeechStatus("Natural voice failed and browser speech is unavailable.", "error");
+      } finally { naturalVoiceButton.disabled = false; }
     });
-
-    // Release the temporary audio URL when the page is closed.
-    window.addEventListener("beforeunload", () => {
-      if (naturalAudioUrl) {
-        URL.revokeObjectURL(naturalAudioUrl);
-      }
+    dataToggle.addEventListener("click", () => {
+      const willOpen = dataPanel.classList.contains("hidden");
+      dataPanel.classList.toggle("hidden", !willOpen); dataToggle.setAttribute("aria-expanded", String(willOpen)); toggleLabel.textContent = willOpen ? "Hide JSON −" : "Show JSON ＋";
     });
+    document.getElementById("copyPlanButton").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(planJson.textContent); copyStatus.textContent = "Plan JSON copied to clipboard."; }
+      catch { copyStatus.textContent = "Clipboard access failed. Select and copy the JSON manually."; }
+    });
+    document.getElementById("copyResponseButton").addEventListener("click", async () => {
+      const copyStatus = document.getElementById("responseCopyStatus");
+      try { await navigator.clipboard.writeText(responseBox.textContent); copyStatus.textContent = "Response copied."; }
+      catch { copyStatus.textContent = "Clipboard access failed. Select and copy the response manually."; }
+    });
+    window.addEventListener("beforeunload", () => { if (naturalAudioUrl) URL.revokeObjectURL(naturalAudioUrl); if (recognition) { try { recognition.abort(); } catch {} } });
   </script>
 </body>
 </html>

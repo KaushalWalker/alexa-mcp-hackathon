@@ -103,6 +103,7 @@ def build_plan_summary(plan: dict) -> str:
     return "\n".join(lines)
 
 
+
 def handle_request(
     message: str,
     plan_date: str,
@@ -123,7 +124,6 @@ def handle_request(
         available_minutes=available_minutes,
     )
 
-
     provider = os.getenv("LLM_PROVIDER", "mock").strip().lower()
     plan_summary = build_plan_summary(plan)
 
@@ -132,10 +132,37 @@ def handle_request(
     else:
         try:
             client = get_llm_client()
-            response = client.generate(
-                f"User request: {message}\n"
-                f"Daily plan data: {plan}"
-            )
+
+            prompt = f"""
+You are DayPilot, a concise and helpful daily planning assistant.
+
+USER REQUEST:
+{message}
+
+DAILY PLAN SUMMARY:
+{plan_summary}
+
+SCHEDULE DATA:
+{plan}
+
+INSTRUCTIONS:
+- Answer the user's request using the supplied plan data.
+- Use plain text, not Markdown.
+- Do not use asterisks, Markdown headings, or escaped formatting characters.
+- Present scheduled tasks with their times and priorities when relevant.
+- Keep your answer concise and easy to understand when spoken aloud.
+- Do not repeat the entire schedule if the user asked a simple question.
+- Do not invent tasks, times, priorities, or completion statuses.
+- If the plan summary already answers the request, use it as the basis of your response.
+- Do not claim an action was completed unless the data confirms it.
+"""
+
+            response = client.generate(prompt)
+
+            if not isinstance(response, str) or not response.strip():
+                response = plan_summary
+                provider = "fallback"
+
         except Exception:
             response = plan_summary
             provider = "fallback"
