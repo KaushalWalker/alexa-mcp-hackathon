@@ -24,7 +24,7 @@ DayPilot brings task management and daily planning into one assistant experience
 
 ## Demo
 
-**Demo video:** *Add your public demo-video link here.*
+**Demo video:** https://youtu.be/q-4WIDtiprA
 
 **Screenshots:** *Add screenshots of the voice interface and a generated daily plan here.*
 
